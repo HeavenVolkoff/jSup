@@ -2,6 +2,8 @@
  * Created by HeavenVolkoff on 18/10/14.
  */
 
+'use strict';
+
 /**
  * Construct RC4 RC4 symmetric cipher
  *
@@ -10,6 +12,7 @@
  * @constructor [RC4]
  */
 function RC4(key, drop){
+    /*global range*/
 	this.s = range(0, 255);
 	this.i = 0;
 	this.j = 0;

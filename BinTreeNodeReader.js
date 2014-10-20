@@ -6,19 +6,21 @@
  *
  * @constructor
  */
-function BinTreeNodeReader(){
-	object.defineProperties(this, {
-		'input': {
-			writable: true
-		},
-		'key': {
-			writable: true
-		}
-	});
 
-	this.resetKey = function resetKey(){
-		this.key = null;
-	};
+'use strict';
+function BinTreeNodeReader(){
+    Object.defineProperties(this, {
+        'input': {
+        	writable: true
+        },
+        'key': {
+        	writable: true
+        }
+    });
+
+    this.resetKey = function resetKey(){
+    	this.key = null;
+    };
 }
 
 BinTreeNodeReader.prototype = {
@@ -138,27 +140,32 @@ BinTreeNodeReader.prototype = {
 		return string;
 	},
 
+    /**
+     *
+     * @param tokenIndex
+     * @returns {*|string}
+     */
 	'getToken': function getToken(tokenIndex){
+        /*global TokenMap*/
 		var subDict = false;
-		var token = '';
 		var tokenMap = new TokenMap();
 		var tokenObj = tokenMap.getToken(tokenIndex, subDict);
 		if(!tokenObj){
-			throw  Error('BinTreeNodeReader.getToken: Invalid tokenIndex'+ tokenIndex);
+			throw new Error('BinTreeNodeReader.getToken: Invalid tokenIndex'+ tokenIndex);
 		}
 
 		subDict = tokenObj[0];
-		token = tokenObj[1];
+		var token = tokenObj[1];
 		if(token === ''){
 			tokenIndex = this.readInt8();
 			tokenObj = tokenMap.getToken(tokenIndex, subDict);
 			if(!tokenObj){
-				throw  Error('BinTreeNodeReader.getToken: Invalid tokenIndex'+ tokenIndex);
+				throw new Error('BinTreeNodeReader.getToken: Invalid tokenIndex'+ tokenIndex);
 			}
 
 			token = tokenObj[1];
 			if(token === ''){
-				throw Error('BinTreeNodeReader.getToken: Invalid tokenIndex'+ tokenIndex);
+				throw new Error('BinTreeNodeReader.getToken: Invalid tokenIndex'+ tokenIndex);
 			}
 		}
 		return token;
@@ -168,7 +175,7 @@ BinTreeNodeReader.prototype = {
 		var token = '';
 
 		if(tokenIndex === -1){
-			throw Error('BinTreeNodeReader.readString: Invalid tokenIndex' + tokenIndex);
+			throw new Error('BinTreeNodeReader.readString: Invalid tokenIndex' + tokenIndex);
 		}
 		if((tokenIndex > 4) && (tokenIndex < 245)){
 			token = this.getToken(tokenIndex);
@@ -183,7 +190,7 @@ BinTreeNodeReader.prototype = {
 			token = this.getToken(tokenIndex + 245);
 		} else if (token === 250){
 			var user = this.readString(this.readInt8());
-			var server = this.readString(thie.readInt8());
+			var server = this.readString(this.readInt8());
 
 			if((user.length > 0) && (server.length > 0)){
 				token = user + '@' + server;
@@ -215,10 +222,10 @@ BinTreeNodeReader.prototype = {
 
 		if(token === 248){
 			size = this.readInt8();
-		}else if(token == 249){
+		}else if(token === 249){
 			size = this.readInt16();
 		}else {
-			throw  Error('BinTreeNodeReader.readListSize: Invalid token: '  +  $token);
+			throw new Error('BinTreeNodeReader.readListSize: Invalid token: '  +  token);
 		}
 
 		return size;
@@ -235,28 +242,30 @@ BinTreeNodeReader.prototype = {
 		return array;
 	},
 
-	'nextTreeInterval': function nextTreeInterval(){
-		var size = this.readListSize(this.readInt8());
-		var token = this.readInt8();
+	'nextTreeInterval': function nextTreeInterval() {
+        /*global ProtocolNode*/
+        var size = this.readListSize(this.readInt8());
+        var token = this.readInt8();
 
-		if(token === 1){
-			return new ProtocolNode('start', this.readAttributes(size), null, '');
-		}else if(tokken === 2){
-			return null;
-		}
+        if (token === 1) {
+            return new ProtocolNode('start', this.readAttributes(size), null, '');
+        }
+        if (token === 2) {
+            return null;
+        }
 
-		var tag = this.readString(token);
-		var attributes = this.readAttributes(size);
-		if((size % 2) === 1){
-			return new ProtocolNode(tag, attributes, null, '');
-		}
-		token = this.readInt8();
-		if(this.isListTag(token)){
-			return new ProtocolNode(tag, attributes, this.readList(token), '');
-		}
+        var tag = this.readString(token);
+        var attributes = this.readAttributes(size);
+        if ((size % 2) === 1) {
+            return new ProtocolNode(tag, attributes, null, '');
+        }
+        token = this.readInt8();
+        if (this.isListTag(token)) {
+            return new ProtocolNode(tag, attributes, this.readList(token), '');
+        }
 
-		return new ProtocolNode(tag, attributes, null, this.readString(token));
-	},
+        return new ProtocolNode(tag, attributes, null, this.readString(token));
+    },
 
 	'nextTree': function nextTree(input){
 		input = input || null;
@@ -268,15 +277,15 @@ BinTreeNodeReader.prototype = {
 		var stanzaFlag = (this.peekInt8() & 0xF0) >> 4;
 		var stanzaSize = this.peekInt16(1);
 		if(stanzaSize > this.input.length){
-			throw Error('incomplete message stanzaSize != ' + this.input.length);
+			throw new Error('incomplete message stanzaSize != ' + this.input.length);
 		}
 		this.readInt24();
 		if(stanzaFlag & 8){
-			if(typeof this.key !== "undefined" && this.key){
+			if(this.key !== 'undefined' && this.key){
 				var realSize = stanzaSize - 4;
 				this.input = this.key.decodeMessage(this.input, realSize, 0, realSize);
 			}else{
-				throw Error("Encountered encrypted message, missing key");
+				throw new Error('Encountered encrypted message, missing key');
 			}
 		}
 		if(stanzaSize > 0){

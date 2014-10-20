@@ -1,6 +1,9 @@
 /**
  * Created by HeavenVolkoff on 15/10/14.
  */
+
+'use strict';
+
 //Referece to TokenMap.js
 //Reference to Decode.js
 
@@ -40,7 +43,7 @@ function ProtocolNode(tag, attributeHash, children, data){
 			if(!this.attributeHash){
 				this.attributeHash.forEach(function(value, index){
 					string += ' ' + index + '="' + value + '"';
-				})
+				});
 			}
 			string += greater;
 			if(this.data.length > 0){
@@ -92,12 +95,12 @@ function ProtocolNode(tag, attributeHash, children, data){
 		 */
 		nodeContainsId: function checkIfNodeContainsId(id){
 			//TODO:AttributeHash must be an object as in php it is an HashTable
-			return this.getAttribute("id").indexOf(id) !== false;
+			return this.getAttribute('id').indexOf(id) !== false;
 		},
 
 		//get children supports string tag or int index
 		/**
-		 * @param {string} tag
+		 * @param {string|int} tag
 		 * @return ProtocolNode
 		 */
 		getChild: function getChild(tag){
@@ -105,7 +108,7 @@ function ProtocolNode(tag, attributeHash, children, data){
 			var children = this.children;
 			if(children){
 				//Check if tag is a int
-				if(tag === +tag && isFinite(tag) && !(tag % 1)){
+				if(tag === +tag && isFinite(tag) && (tag % 1 === 0)){
 					if(children[tag] !== undefined || children[tag] !== null){
 						return children[tag];
 					}else{
@@ -113,12 +116,12 @@ function ProtocolNode(tag, attributeHash, children, data){
 					}
 				}else{
 					children.forEach(function(child){
-						if(child.tag == tag){
+						if(child.tag === tag){
 							return child;
 						}else{
 							string = child.children;
 							if(string){
-								return string
+								return string;
 							}
 						}
 					});
@@ -142,14 +145,14 @@ function ProtocolNode(tag, attributeHash, children, data){
 		refreshTimes: function refreshTimes(offset){
 			offset = Math.floor(offset) || 0;
 
-			if(this.attributeHash['id'] !== undefined && this.attributeHash['id'] !== null){
-				var id = this.attributeHash['id'];
+			if(this.attributeHash.id !== undefined && this.attributeHash.id !== null){
+				var id = this.attributeHash.id;
 				var parts = id.split('-');
 				parts[0] = Math.floor(new Date().getTime()/1000) + offset;
-				this.attributeHash['id'] = parts.join('-') ;
+				this.attributeHash.id = parts.join('-') ;
 			}
-			if(this.attributeHash['t'] !== undefined && this.attributeHash['t'] !== null){
-				this.attributeHash['t'] = Math.floor(new Date().getTime()/1000);
+			if(this.attributeHash.t !== undefined && this.attributeHash.t !== null){
+				this.attributeHash.t = Math.floor(new Date().getTime()/1000);
 			}
 		},
 
@@ -159,6 +162,7 @@ function ProtocolNode(tag, attributeHash, children, data){
 		 * @return string
 		 */
 		toString: function toString(){
+            /*global print_r*/
 			//TODO: verifies if it works on web (modified php.js method)
 			var readableNode = {
 				'tag': this.tag,
@@ -167,7 +171,7 @@ function ProtocolNode(tag, attributeHash, children, data){
 				'data': this.data
 			};
 
-			return print_r(readableNode ,true)
+			return print_r(readableNode ,true);
 		}
 
 	};

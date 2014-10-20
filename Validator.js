@@ -1,6 +1,8 @@
 /**
  * Created by HeavenVolkoff on 16/10/14.
  */
+'use strict';
+
 function paramValidation(){
 	if(arguments.length % 3 !== 0){
 		throw Error('Function paramValidator has not enough parameters');

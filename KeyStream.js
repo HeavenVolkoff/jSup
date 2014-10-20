@@ -2,13 +2,15 @@
  * Created by HeavenVolkoff on 16/10/14.
  */
 
-
+'use strict';
 function KeyStream(key, macKey){
-	const DROP = 768;
-
+    /*global RC4*/
 	Object.defineProperties(this, {
+        'DROP': {
+            'value': 768
+        },
 		'rc4': {
-			'value': new RC4(key, DROP)
+			'value': new RC4(key, this.DROP)
 		},
 		'macKey': {
 			get: function get(){
@@ -18,8 +20,8 @@ function KeyStream(key, macKey){
 		'seq': {
 			'value': 0,
 			'writable': true
-		}
-	})
+        }
+	});
 }
 
 KeyStream.prototype = {
@@ -31,14 +33,16 @@ KeyStream.prototype = {
 	 * @returns {string[]}
 	 */
 	 'generateKeys': function generateKeys(password, nonce){
-		 var array = [];
-		 nonce += '0';
+        /*global bin2hex*/
+        var array = [];
+        var crypto = require('crypto');
+        nonce += '0';
 
-		 for(var j = 0; j < 4; j++){
-			 nonce[nonce.length - 1] = String.fromCharCode(j + 1);
-			 array.push(waPbkdf2('SHA-1', password, nonce, 2, 20, true));
-		 }
-		 return array;
+        for(var count = 0; count < 4; count++){
+            nonce[nonce.length - 1] = String.fromCharCode(count + 1);
+            array.push(bin2hex(crypto.pbkdf2(password, nonce, 2, 20)));
+        }
+        return array;
 	 },
 
 	/**
@@ -46,20 +50,20 @@ KeyStream.prototype = {
 	 *
 	 * @param {Buffer} buffer
 	 * @param {int} offset
-	 * @param {int} lenght
+	 * @param {int} length
 	 * @returns {string}
 	 */
-	'computeMac': function computeMac(buffer, offset, lenght){
-		var crypto = require('crypto');
-		var hmac = crypto.createHmac('sha1', this.macKey);
-		hmac.update(buffer.substr(offset, lenght));
-		var string = String.fromCharCode(this.seq >> 24) +
-					 String.fromCharCode(this.seq >> 16) +
-					 String.fromCharCode(this.seq >> 8) +
-					 String.fromCharCode(this.seq);
-		hmac.update(string);
-		this.seq++;
-		return hmac.digest('binary');
+	'computeMac': function computeMac(buffer, offset, length){
+        var crypto = require('crypto');
+        var hmac = crypto.createHmac('sha1', this.macKey);
+        hmac.update(buffer.substr(offset, length));
+        var string = String.fromCharCode(this.seq >> 24) +
+                     String.fromCharCode(this.seq >> 16) +
+                     String.fromCharCode(this.seq >> 8) +
+                     String.fromCharCode(this.seq);
+        hmac.update(string);
+        this.seq++;
+        return hmac.digest('binary');
 	},
 
 	/**
@@ -74,9 +78,9 @@ KeyStream.prototype = {
 	'decodeMessage': function decodeMessage(buffer, macOffsset, offset, length){
 		var mac = this.computeMac(buffer, offset, length);
 		//Validate Mac
-		for(var i = 0; i < 4; i++){
+		for(var count = 0; count < 4; count++){
 			var bufferVerifier = buffer.charCodeAt(macOffsset + 1);
-			var macVerifier = mac.charCodeAt(i);
+			var macVerifier = mac.charCodeAt(count);
 
 			if(bufferVerifier !== macVerifier){
 				throw Error('Mac mismatch: bufferVerifier: ' + bufferVerifier + ' != macVerifier' + macVerifier);
