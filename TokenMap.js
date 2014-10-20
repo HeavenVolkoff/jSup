@@ -437,10 +437,9 @@ function TokenMap(){
 				token = tokenMap[tokenIndex];
 
 				if(token === ''){
-					return null;
-				}else{
-					return [subDict, token];
+					console.log('Invalid token/length');
 				}
+				return [subDict, token];
 			}
 
 			return null;

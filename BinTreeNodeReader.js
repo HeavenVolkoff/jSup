@@ -125,7 +125,8 @@ BinTreeNodeReader.prototype = {
 	},
 
 	/**
-	 * 
+	 * Remove from begin of this.input array the given length and return it
+     *
 	 * @param length
 	 * @returns {string}
 	 */
@@ -141,9 +142,11 @@ BinTreeNodeReader.prototype = {
 	},
 
     /**
+     * return token related to tokenIndex inside primary or secondary string of TreeMap
+     * Note: if token is a empty string from primaryString, tries to return the token from secondaryString related to the first byte of this.input
      *
-     * @param tokenIndex
-     * @returns {*|string}
+     * @param {int} tokenIndex
+     * @returns {string}
      */
 	'getToken': function getToken(tokenIndex){
         /*global TokenMap*/
@@ -171,6 +174,12 @@ BinTreeNodeReader.prototype = {
 		return token;
 	},
 
+    /**
+     * Return Token depending on TokenIndex, normally it should return getToken(), but it also treats some special cases(Don't know what they mean yet thought)
+     *
+     * @param {int} tokenIndex
+     * @returns {string}
+     */
 	'readString': function readString(tokenIndex){
 		var token = '';
 
@@ -187,7 +196,7 @@ BinTreeNodeReader.prototype = {
 			token = this.fillArray(this.readInt24());
 		} else if(tokenIndex === 254){
 			tokenIndex = this.readInt8();
-			token = this.getToken(tokenIndex + 245);
+			token = this.getToken(tokenIndex + 245); //TODO: verifies, This should throw an error in getToken(), tokenIndex seems to be bigger than TokenMap's arrays length
 		} else if (token === 250){
 			var user = this.readString(this.readInt8());
 			var server = this.readString(this.readInt8());
@@ -201,6 +210,12 @@ BinTreeNodeReader.prototype = {
 		return token;
 	},
 
+    /**
+     * 
+     *
+     * @param size
+     * @returns {Array}
+     */
 	'readAttributes': function readAttributes(size){
 		var attributes = [];
 		var attributesCount = ((size - 2) + (size % 2)) / 2;
