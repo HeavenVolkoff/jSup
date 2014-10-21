@@ -40,7 +40,7 @@ KeyStream.prototype = {
 
         for(var count = 0; count < 4; count++){
             nonce[nonce.length - 1] = String.fromCharCode(count + 1);
-            array.push(bin2hex(crypto.pbkdf2(password, nonce, 2, 20)));
+            array.push(crypto.pbkdf2(password, nonce, 2, 20));//TODO: this function returns a buffer need attention
         }
         return array;
 	 },
@@ -55,6 +55,7 @@ KeyStream.prototype = {
 	 */
 	'computeMac': function computeMac(buffer, offset, length){
         var crypto = require('crypto');
+		//TODO: verifies that this.macKey is in binary string form or is a buffer.
         var hmac = crypto.createHmac('sha1', this.macKey);
         hmac.update(buffer.substr(offset, length));
         var string = String.fromCharCode(this.seq >> 24) +

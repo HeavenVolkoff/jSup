@@ -142,7 +142,7 @@ BinTreeNodeReader.prototype = {
 	},
 
     /**
-     * return token related to tokenIndex inside primary or secondary string of TreeMap
+     * Return token related to tokenIndex inside primary or secondary string of TreeMap
      * Note: if token is a empty string from primaryString, tries to return the token from secondaryString related to the first byte of this.input
      *
      * @param {int} tokenIndex
@@ -175,8 +175,15 @@ BinTreeNodeReader.prototype = {
 	},
 
     /**
-     * Return Token depending on TokenIndex, normally it should return getToken(), but it also treats some special cases(Don't know what they mean yet thought)
-     *
+     * Return Token depending on TokenIndex, normally it should return getToken(), but it also treats some special cases(close to 2^8 - a byte)
+     * Special Cases:
+     * - 0:     return empty string.
+     * - 250:   Recursive step (probably related with all of the others steps), create two new variables (user and server)
+     *      that are equals to readString from the first and second byte of this.input, return server if user length less than 0, or return user+@+server if not.
+     * - 252:   return this.input substring starting from it's first byte with length equal to the first byte.
+     * - 253:   return this.input substring starting from it's third byte with length equal to the first byte
+     *      multiplied by (2*16) OR'ed with the second and third byte multiplied by (2*8).
+     * - 254:   return getToken() with index equals to the first byte of this.input + 245. TODO: verifies, This should throw an error in getToken(), tokenIndex seems to be bigger than TokenMap's arrays length
      * @param {int} tokenIndex
      * @returns {string}
      */
@@ -196,7 +203,7 @@ BinTreeNodeReader.prototype = {
 			token = this.fillArray(this.readInt24());
 		} else if(tokenIndex === 254){
 			tokenIndex = this.readInt8();
-			token = this.getToken(tokenIndex + 245); //TODO: verifies, This should throw an error in getToken(), tokenIndex seems to be bigger than TokenMap's arrays length
+			token = this.getToken(tokenIndex + 245);
 		} else if (token === 250){
 			var user = this.readString(this.readInt8());
 			var server = this.readString(this.readInt8());
@@ -211,13 +218,13 @@ BinTreeNodeReader.prototype = {
 	},
 
     /**
-     * 
+     * Parse this.input into an object that has {'key': 'value'}, where key is equal to the first byte and value to the next.
      *
-     * @param size
-     * @returns {Array}
+     * @param {int} size
+     * @returns {Object}
      */
 	'readAttributes': function readAttributes(size){
-		var attributes = [];
+		var attributes = {};
 		var attributesCount = ((size - 2) + (size % 2)) / 2;
 
 		for(var count = 0; count < attributesCount; count++){
@@ -228,26 +235,44 @@ BinTreeNodeReader.prototype = {
 		return attributes;
 	},
 
+	/**
+	 * Don't know what hell this mean
+	 *
+	 * @param {int} token
+	 * @returns {boolean}
+	 */
 	'isListTag': function isListTag(token){
 		return ((token === 248) || (token === 0) || (token === 249));
 	},
 
-	'readListSize': function readListSize(token){
+	/**
+	 * I thisk this is related with isListTag(), return first byte of this.input or first and second byte OR'ed multiply by (2*8)
+	 *
+	 * @param {int} tokenIndex
+	 * @returns {int}
+	 */
+	'readListSize': function readListSize(tokenIndex){
 		var size = 0;
 
-		if(token === 248){
+		if(tokenIndex === 248){
 			size = this.readInt8();
-		}else if(token === 249){
+		}else if(tokenIndex === 249){
 			size = this.readInt16();
 		}else {
-			throw new Error('BinTreeNodeReader.readListSize: Invalid token: '  +  token);
+			throw new Error('BinTreeNodeReader.readListSize: Invalid tokenIndex: '  +  tokenIndex);
 		}
 
 		return size;
 	},
 
-	'readList': function readList(token){
-		var size = this.readListSize(token);
+	/**
+	 * Return an array of ProtocolNode's, probably all the messages that are on the server
+	 *
+	 * @param {int} tokenIndex
+	 * @returns {Array}
+	 */
+	'readList': function readList(tokenIndex){
+		var size = this.readListSize(tokenIndex);
 		var array = [];
 
 		for(var count = 0; count < size; count++){
@@ -257,31 +282,53 @@ BinTreeNodeReader.prototype = {
 		return array;
 	},
 
+	/**
+	 * Return Protocol Node, representing new Messages(i think).
+	 *
+	 * @returns {ProtocolNode}
+	 */
 	'nextTreeInterval': function nextTreeInterval() {
-        /*global ProtocolNode*/
+        /*global ProtocolNode(tag, attributeHash, children, data)*/
         var size = this.readListSize(this.readInt8());
-        var token = this.readInt8();
+        var tokenIndex = this.readInt8();
 
-        if (token === 1) {
+        if (tokenIndex === 1) {
+	        /**
+	         * Probably some special first ProtocolNode
+	         */
             return new ProtocolNode('start', this.readAttributes(size), null, '');
         }
-        if (token === 2) {
+        if (tokenIndex === 2) {
             return null;
         }
 
-        var tag = this.readString(token);
+        var tag = this.readString(tokenIndex);
         var attributes = this.readAttributes(size);
         if ((size % 2) === 1) {
+	        /**
+	         * Null ProtocolNode (i think)
+	         */
             return new ProtocolNode(tag, attributes, null, '');
         }
-        token = this.readInt8();
-        if (this.isListTag(token)) {
-            return new ProtocolNode(tag, attributes, this.readList(token), '');
+        tokenIndex = this.readInt8();
+        if (this.isListTag(tokenIndex)) {
+	        /**
+	         * ProtocolNode with an array of it's children's (recursive)
+	         */
+            return new ProtocolNode(tag, attributes, this.readList(tokenIndex), '');
         }
-
-        return new ProtocolNode(tag, attributes, null, this.readString(token));
+		/**
+		 * ProtocolNode with data equals to some token from TokenMap, or a special case.
+		 */
+        return new ProtocolNode(tag, attributes, null, this.readString(tokenIndex));
     },
 
+	/**
+	 * Receive input (probably whatsapp server message) and set it, treating errors.
+	 *
+	 * @param {string} input
+	 * @returns {ProtocolNode}
+	 */
 	'nextTree': function nextTree(input){
 		input = input || null;
 
