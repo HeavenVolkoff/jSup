@@ -2,12 +2,13 @@
  * Created by HeavenVolkoff on 16/10/14.
  */
 
-/**
- *
- * @constructor
- */
-
 'use strict';
+
+/**
+ * BinTreeNodeReader Class
+ *
+ * @constructor {BinTreeNodeReader}
+ */
 function BinTreeNodeReader(){
     Object.defineProperties(this, {
         'input': {
@@ -17,13 +18,16 @@ function BinTreeNodeReader(){
         	writable: true
         }
     });
-
-    this.resetKey = function resetKey(){
-    	this.key = null;
-    };
 }
 
 BinTreeNodeReader.prototype = {
+	/**
+	 * Reset this.key
+	 */
+	'resetKey': function resetKey(){
+		this.key = null;
+	},
+
 	/**
 	 * Return this.input (XML whatsapp message header) first byte starting from offset (first flag)
 	 *
@@ -152,21 +156,21 @@ BinTreeNodeReader.prototype = {
         /*global TokenMap*/
 		var subDict = false;
 		var tokenMap = new TokenMap();
-		var tokenObj = tokenMap.getToken(tokenIndex, subDict);
-		if(!tokenObj){
+		var tokenArray = tokenMap.getToken(tokenIndex, subDict);
+		if(!tokenArray){
 			throw new Error('BinTreeNodeReader.getToken: Invalid tokenIndex'+ tokenIndex);
 		}
 
-		subDict = tokenObj[0];
-		var token = tokenObj[1];
+		subDict = tokenArray[0];
+		var token = tokenArray[1];
 		if(token === ''){
 			tokenIndex = this.readInt8();
-			tokenObj = tokenMap.getToken(tokenIndex, subDict);
-			if(!tokenObj){
+			tokenArray = tokenMap.getToken(tokenIndex, subDict);
+			if(!tokenArray){
 				throw new Error('BinTreeNodeReader.getToken: Invalid tokenIndex'+ tokenIndex);
 			}
 
-			token = tokenObj[1];
+			token = tokenArray[1];
 			if(token === ''){
 				throw new Error('BinTreeNodeReader.getToken: Invalid tokenIndex'+ tokenIndex);
 			}
@@ -175,7 +179,7 @@ BinTreeNodeReader.prototype = {
 	},
 
     /**
-     * Return Token depending on TokenIndex, normally it should return getToken(), but it also treats some special cases(close to 2^8 - a byte)
+     * Return Token depending on TokenIndex, normally it should return getToken(), but it also treats some special cases(close to 2^8 - a byte || characters input are inside 0-255)
      * Special Cases:
      * - 0:     return empty string.
      * - 250:   Recursive step (probably related with all of the others steps), create two new variables (user and server)

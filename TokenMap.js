@@ -449,17 +449,17 @@ function TokenMap(){
 		 * Returns an object with the string array name and the index of the token string, or null if nothing is founded
 		 *
 		 * @param {string} token
-		 * @returns {object}
+		 * @returns {[boolean, object]}
 		 */
 		'getTokenIndex': function getTokenIndex(token){
 			var tokenIndex = this.primaryStrings.indexOf(token);
 			if(tokenIndex){
-				return {'primary': tokenIndex};
+				return [false, tokenIndex];
 			}
 
 			tokenIndex = this.secondaryStrings.indexOf(token);
 			if(tokenIndex){
-				return {'secondary': tokenIndex};
+				return [true, tokenIndex];
 			}
 			return null;
 		}
