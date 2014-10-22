@@ -18,7 +18,8 @@ function BinTreeNodeWriter(){
 /**
  * 'þ' = '\xfe' = 0xFE = 254
  * 'ú' = '\xfa' = 0xFa = 250
- * @type {{resetKey: resetKey, writeInt8: writeInt8, writeInt16: writeInt16, writeInt24: writeInt24, parseInt24: parseInt24, getInt24: getInt24, writeBytes: writeBytes, writeToken: writeToken, protected: writeJid}}
+ *
+ * @type {{resetKey: resetKey, writeInt8: writeInt8, writeInt16: writeInt16, writeInt24: writeInt24, parseInt24: parseInt24, getInt24: getInt24, writeBytes: writeBytes, writeToken: writeToken, writeString: writeString, writeJabberid: writeJabberid, writeAttributes: writeAttributes, writeListStart: writeListStart, flushBuffer: flushBuffer, writeInternal: writeInternal, write: write, startStream: startStream}}
  */
 BinTreeNodeWriter.prototype = {
 	/**
@@ -28,10 +29,22 @@ BinTreeNodeWriter.prototype = {
 		this.key = null;
 	},
 
+	/**
+	 * Return the char correlated to int value
+	 *
+	 * @param {int} int
+	 * @returns {string}
+	 */
 	'writeInt8': function writeInt8(int){
-        return String.fromCharCode(int & 0xFF);
+        return String.fromCharCode(int); //it was (int & 0xFF), but that doesn't do a fucking thing as 0xFF is equal to 11111111
 	},
 
+	/**
+	 * Split int value into two bytes (0xFF00 and 0x00FF) and return the correlated char to both as a string
+	 *
+	 * @param {int} int
+	 * @returns {string}
+	 */
 	'writeInt16': function writeInt16(int){
 		var char = String.fromCharCode((int & 0xFF00) >> 8);
 		char += String.fromCharCode(int & 0x00FF);
@@ -39,6 +52,12 @@ BinTreeNodeWriter.prototype = {
 		return char;
 	},
 
+	/**
+	 * Split int value into three bytes (0xFF0000, 0x00FF00 & 0x0000FF) and return the correlated char to them as a string
+	 *
+	 * @param {int} int
+	 * @returns {string}
+	 */
 	'writeInt24': function writeInt24(int){
 		var char = String.fromCharCode((int & 0xFF0000) >> 16);
 		char += String.fromCharCode((int & 0x00FF00) >> 8);
@@ -47,6 +66,12 @@ BinTreeNodeWriter.prototype = {
 		return char;
 	},
 
+	/**
+	 * Return int value from split char's, Inverse to writeInt24()
+	 *
+	 * @param data
+	 * @returns {Number}
+	 */
 	'parseInt24': function parseInt24(data){
 		var int = data.charCodeAt(0) << 16;
 		int += data.charCodeAt(1) << 8;
@@ -55,15 +80,26 @@ BinTreeNodeWriter.prototype = {
 		return int;
 	},
 
+	/**
+	 * Almost same thing as writeInt24(), only difference is that it only get the first 4 bits of the third byte, instead of the whole byte
+	 *
+	 * @param {int} length
+	 * @returns {string}
+	 */
 	'getInt24': function getInt24(length){
 		var string = '';
 		string += String.fromCharCode((length & 0xF0000) >> 16);
 		string += String.fromCharCode((length & 0xFF00) >> 8);
-		string += String.fromCharCode(length & 0xFF);
+		string += String.fromCharCode(length & 0x00FF);
 
 		return string;
 	},
 
+	/**
+	 * Receive a binary formatted string and write inside output the length of it
+	 *
+	 * @param {string} bytes
+	 */
 	'writeBytes': function writeBytes(bytes){
 		var length = bytes.length;
 
@@ -78,6 +114,12 @@ BinTreeNodeWriter.prototype = {
 		this.output += bytes;
 	},
 
+
+	/**
+	 * Write token inside this.output
+	 *
+	 * @param {int} token
+	 */
 	'writeToken': function writeToken(token){
 		if(token < 245){
 			this.output += String.fromCharCode(token);
@@ -86,6 +128,11 @@ BinTreeNodeWriter.prototype = {
 		}
 	},
 
+	/**
+	 * Write tag value inside this.output
+	 *
+	 * @param tag
+	 */
 	'writeString' : function writeString(tag) {
 		/*global TokenMap*/
 		var tokenMap = new TokenMap();
@@ -102,15 +149,20 @@ BinTreeNodeWriter.prototype = {
 			if(index){
 				var server = tag.substr(index + 1);
 				var user = tag.substr(0, index);
-				this.writeJid(user, server);
+				this.writeJabberid(user, server);
 			}else{
 				this.writeBytes(tag);
 			}
 		}
 	},
 
-	//Rename J
-	'writeJid': function writeJid(user, server){
+	/**
+	 * Write user and server values inside this.output
+	 *
+	 * @param {string} user
+	 * @param {string} server
+	 */
+	'writeJabberid': function writeJabberid(user, server){
 		this.output += '\xfa';
 		if(user.length > 0){
 			this.writeString(user);
@@ -120,6 +172,11 @@ BinTreeNodeWriter.prototype = {
 		this.writeString(server);
 	},
 
+	/**
+	 * write attributes key and value inside this.output
+	 *
+	 * @param {object} attributes
+	 */
 	'writeAttributes': function writeAttributes(attributes){
 		if(attributes){
 			attributes.forEach(function(value, key){
@@ -129,6 +186,11 @@ BinTreeNodeWriter.prototype = {
 		}
 	},
 
+	/**
+	 * Write length inside this.output
+	 *
+	 * @param {int} length
+	 */
 	'writeListStart': function writeListStart(length) {
 		if(length === 0){
 			this.output += '\x00';
@@ -137,5 +199,115 @@ BinTreeNodeWriter.prototype = {
 		}else{
 			this.output += '\xf9' + this.writeInt16(length);
 		}
+	},
+
+	/**
+	 * Return encrypted[or not] header from this.output
+	 *
+	 * @param {boolean} [encrypt = true]
+	 * @returns {string}
+	 */
+	'flushBuffer': function flushBuffer(encrypt){
+		encrypt = encrypt || true;
+
+		var size = this.output.length;
+		var data = this.output;
+
+		if(this.key !== null && this.key !== undefined && encrypt){
+			var blockSize = this.getInt24(size);
+			//encrypt
+			data = this.key.encodeMessage(data, size, 0, size);
+			var length = data.length;
+			blockSize[0] = String.fromCharCode((8 << 4) | ((length & 0xFF0000) >> 16));
+			blockSize[1] = String.fromCharCode((length & 0xFF00) >> 8);
+			blockSize[2] = String.fromCharCode(length & 0xFF);
+			size = this.parseInt24(blockSize);
+		}
+
+		var header = this.writeInt24(size);
+		header += data;
+
+		this.output = '';
+
+		return header;
+	},
+
+	/**
+	 * Receive Node and write it on this.output
+	 *
+	 * @param {ProtocolNode} node
+	 */
+	'writeInternal': function writeInternal(node){
+		var length = 1;
+
+		if(node.attributeHash !== null){
+			length += node.attributeHash.length * 2;
+		}
+		if(node.children.length > 0){
+			length += 1;
+		}
+		if(node.data.length > 0){
+			length += 1;
+		}
+
+		this.writeListStart(length);
+		this.writeString(node.tag);
+		this.writeAttributes(node.attributeHash);
+
+		if(node.data > 0){
+			this.writeBytes(node.data);
+		}
+		if(node.children){
+			this.writeListStart(node.children.length);
+
+			node.children.forEach(function(child){
+				this.writeInternal(child);
+			});
+		}
+	},
+
+	/**
+	 * Write nodes into this.output and return header
+	 *
+	 * @param {ProtocolNode} node
+	 * @param {boolean} [encrypt = true]
+	 * @returns {string}
+	 */
+	'write': function write(node, encrypt){
+		encrypt = encrypt || true;
+
+		if(node === null || node === undefined){
+			this.output += '\x00';
+		}else{
+			this.writeInternal(node);
+		}
+
+		return this.flushBuffer(encrypt);
+	},
+
+	/**
+	 * Return Header with this.flashBuffer
+	 *
+	 * @param {string} domain
+	 * @param {string} resource
+	 * @returns {string}
+	 */
+	'startStream': function startStream(domain, resource){
+		var attributes = {'to': null, 'resorce': null};
+
+		var header = 'WA';
+		header += this.writeInt8(1);
+		header += this.writeInt8(4);
+
+		attributes.to = domain;
+		attributes.resource = resource;
+		this.writeListStart(attributes.length * 2 + 1);
+
+		this.output += '\x01';
+		this.writeAttributes(attributes);
+
+		header = header + this.flushBuffer();
+
+		return header;
 	}
 };

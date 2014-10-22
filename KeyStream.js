@@ -93,7 +93,7 @@ KeyStream.prototype = {
 	/**
 	 * Encode given buffer message
 	 *
-	 * @param {Buffer} buffer
+	 * @param {String} buffer
 	 * @param {int} macOffset
 	 * @param {int} offset
 	 * @param {int} length
