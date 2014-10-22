@@ -292,7 +292,7 @@ BinTreeNodeReader.prototype = {
 	 * @returns {ProtocolNode}
 	 */
 	'nextTreeInterval': function nextTreeInterval() {
-        /*global ProtocolNode(tag, attributeHash, children, data)*/
+        /*global ProtocolNode*/
         var size = this.readListSize(this.readInt8());
         var tokenIndex = this.readInt8();
 

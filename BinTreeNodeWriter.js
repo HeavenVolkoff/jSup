@@ -29,9 +29,7 @@ BinTreeNodeWriter.prototype = {
 	},
 
 	'writeInt8': function writeInt8(int){
-		var char = String.fromCharCode(int & 0xFF);
-
-		return char;
+        return String.fromCharCode(int & 0xFF);
 	},
 
 	'writeInt16': function writeInt16(int){
@@ -109,12 +107,11 @@ BinTreeNodeWriter.prototype = {
 				this.writeBytes(tag);
 			}
 		}
-
 	},
 
 	//Rename J
 	'writeJid': function writeJid(user, server){
-		this.output += "\xfa";
+		this.output += '\xfa';
 		if(user.length > 0){
 			this.writeString(user);
 		}else{
@@ -123,7 +120,7 @@ BinTreeNodeWriter.prototype = {
 		this.writeString(server);
 	},
 
-	'writeAttibutes': function writeAttributes(attrobutes){
+	'writeAttributes': function writeAttributes(attributes){
 		if(attributes){
 			attributes.forEach(function(value, key){
 				this.writeString(key);
@@ -133,7 +130,7 @@ BinTreeNodeWriter.prototype = {
 	},
 
 	'writeListStart': function writeListStart(length) {
-		if(length == 0){
+		if(length === 0){
 			this.output += '\x00';
 		}else if(length < 256){
 			this.output += '\xf8' + String.fromCharCode(length);
