@@ -5,7 +5,7 @@
 'use strict';
 
 /**
- * Construct RC4 RC4 symmetric cipher
+ * Construct RC4 symmetric cipher
  *
  * @param key
  * @param drop
@@ -50,17 +50,17 @@ RC4.prototype = {
 	 *
 	 * @param {string} data
 	 * @param {int} offset
-	 * @param {int } lenght
+	 * @param {int } length
 	 * @returns {*}
 	 */
-	'cipher': function cipher(data, offset, lenght){
+	'cipher': function cipher(data, offset, length){
 		var out = data;
-		for(var n = lenght; n > 0; n--){
-			this.i = (this.i + 1) & 0xff;
-			this.j = (this.j + this.s[this.i]) & 0xff;
+		for(var n = length; n > 0; n--){
+			this.i = this.i + 1;// & 0xFF
+			this.j = this.j + this.s[this.i];// & 0xFF
 			this.swap(this.i, this.j);
 			var d = data.charCodeAt(offset);
-			out[offset] = String.fromCharCode(d ^ this.s[(this.s[this.i] + this.s[this.j])] & 0xff);
+			out[offset] = String.fromCharCode(d ^ this.s[(this.s[this.i] + this.s[this.j])]);// & 0xFF
 			offset++;
 		}
 		return out;

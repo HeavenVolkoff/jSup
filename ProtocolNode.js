@@ -29,7 +29,7 @@ function ProtocolNode(tag, attributeHash, children, data){
 		/**
 		 * @param {string} indent
 		 * @param {bool} isChild
-		 * @return string
+		 * @return {string}
 		 */
 		nodeString: function generateNodeString(indent, isChild){
 			//Formaters

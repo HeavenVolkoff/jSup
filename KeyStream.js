@@ -3,19 +3,23 @@
  */
 
 'use strict';
+
+/**
+ *
+ *
+ * @param {string} key
+ * @param {string} macKey
+ * @constructor
+ */
 function KeyStream(key, macKey){
+	const DROP = 768;
     /*global RC4*/
 	Object.defineProperties(this, {
-        'DROP': {
-            'value': 768
-        },
 		'rc4': {
-			'value': new RC4(key, this.DROP)
+			'value': new RC4(key, DROP)
 		},
 		'macKey': {
-			get: function get(){
-				return macKey;
-			}
+			value: new Buffer(macKey)
 		},
 		'seq': {
 			'value': 0,
@@ -33,14 +37,20 @@ KeyStream.prototype = {
 	 * @returns {string[]}
 	 */
 	 'generateKeys': function generateKeys(password, nonce){
-        /*global bin2hex*/
         var array = [];
         var crypto = require('crypto');
-        nonce += '0';
+
+		var func = function fillArray(err, key){
+			if(!err){
+				array.push(key.toString('binary'));
+			}else{
+				throw  err;
+			}
+		};
 
         for(var count = 0; count < 4; count++){
-            nonce[nonce.length - 1] = String.fromCharCode(count + 1);
-            array.push(crypto.pbkdf2(password, nonce, 2, 20));//TODO: this function returns a buffer need attention
+            var pseudoNonce = nonce + String.fromCharCode(count + 1);
+            crypto.pbkdf2(password, pseudoNonce, 2, 20, func);
         }
         return array;
 	 },
@@ -48,19 +58,18 @@ KeyStream.prototype = {
 	/**
 	 * Calculate HMAC from given buffer;
 	 *
-	 * @param {Buffer} buffer
+	 * @param {string} buffer
 	 * @param {int} offset
 	 * @param {int} length
 	 * @returns {string}
 	 */
 	'computeMac': function computeMac(buffer, offset, length){
         var crypto = require('crypto');
-		//TODO: verifies that this.macKey is in binary string form or is a buffer.
         var hmac = crypto.createHmac('sha1', this.macKey);
         hmac.update(buffer.substr(offset, length));
         var string = String.fromCharCode(this.seq >> 24) +
                      String.fromCharCode(this.seq >> 16) +
-                     String.fromCharCode(this.seq >> 8) +
+                     String.fromCharCode(this.seq >> 8)  +
                      String.fromCharCode(this.seq);
         hmac.update(string);
         this.seq++;
@@ -70,17 +79,17 @@ KeyStream.prototype = {
 	/**
 	 * Decode given buffer message
 	 *
-	 * @param {Buffer} buffer
-	 * @param {int} macOffsset
+	 * @param {string} buffer
+	 * @param {int} macOffset
 	 * @param {int} offset
 	 * @param {int} length
 	 * @returns {string}
 	 */
-	'decodeMessage': function decodeMessage(buffer, macOffsset, offset, length){
+	'decodeMessage': function decodeMessage(buffer, macOffset, offset, length){
 		var mac = this.computeMac(buffer, offset, length);
 		//Validate Mac
 		for(var count = 0; count < 4; count++){
-			var bufferVerifier = buffer.charCodeAt(macOffsset + 1);
+			var bufferVerifier = buffer.charCodeAt(macOffset + 1);
 			var macVerifier = mac.charCodeAt(count);
 
 			if(bufferVerifier !== macVerifier){
@@ -93,7 +102,7 @@ KeyStream.prototype = {
 	/**
 	 * Encode given buffer message
 	 *
-	 * @param {String} buffer
+	 * @param {string} buffer
 	 * @param {int} macOffset
 	 * @param {int} offset
 	 * @param {int} length

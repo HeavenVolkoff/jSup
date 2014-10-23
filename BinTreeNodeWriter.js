@@ -19,7 +19,7 @@ function BinTreeNodeWriter(){
  * 'þ' = '\xfe' = 0xFE = 254
  * 'ú' = '\xfa' = 0xFa = 250
  *
- * @type {{resetKey: resetKey, writeInt8: writeInt8, writeInt16: writeInt16, writeInt24: writeInt24, parseInt24: parseInt24, getInt24: getInt24, writeBytes: writeBytes, writeToken: writeToken, writeString: writeString, writeJabberid: writeJabberid, writeAttributes: writeAttributes, writeListStart: writeListStart, flushBuffer: flushBuffer, writeInternal: writeInternal, write: write, startStream: startStream}}
+ * @type {{resetKey: resetKey, writeInt8: writeInt8, writeInt16: writeInt16, writeInt24: writeInt24, parseInt24: parseInt24, getInt24: getInt24, writeBytes: writeBytes, writeToken: writeToken, writeString: writeString, writeJabberid: writeJabberId, writeAttributes: writeAttributes, writeListStart: writeListStart, flushBuffer: flushBuffer, writeInternal: writeInternal, write: write, startStream: startStream}}
  */
 BinTreeNodeWriter.prototype = {
 	/**
@@ -149,7 +149,7 @@ BinTreeNodeWriter.prototype = {
 			if(index){
 				var server = tag.substr(index + 1);
 				var user = tag.substr(0, index);
-				this.writeJabberid(user, server);
+				this.writeJabberId(user, server);
 			}else{
 				this.writeBytes(tag);
 			}
@@ -162,7 +162,7 @@ BinTreeNodeWriter.prototype = {
 	 * @param {string} user
 	 * @param {string} server
 	 */
-	'writeJabberid': function writeJabberid(user, server){
+	'writeJabberId': function writeJabberId(user, server){
 		this.output += '\xfa';
 		if(user.length > 0){
 			this.writeString(user);
