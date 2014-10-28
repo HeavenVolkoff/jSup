@@ -15,6 +15,8 @@ function BinTreeNodeWriter(){
 	});
 }
 
+module.exports = BinTreeNodeWriter;
+
 /**
  * 'þ' = '\xfe' = 0xFE = 254
  * 'ú' = '\xfa' = 0xFa = 250

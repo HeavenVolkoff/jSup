@@ -100,7 +100,7 @@ function extractNumber(from){
  */
 function preProcessProfilePicture(path){
 	var Gm = require('gm');// Node.js bridge between GraphicsMagick to edit images, equivalent to PHP's gd extension
-	var fs = require('fs');// Node.js equivalent to stdio.h
+	var fs = require('fs');// Node.js File System module
 
 	var image = new Gm(path);
 
@@ -112,32 +112,32 @@ function preProcessProfilePicture(path){
             if(size.width > 640){
 				throw new Error('Profile picture maximum size of 640 x 640 (image is' + size.width + 'x' + size.height + ')');
 			}
+
+			fs.unlink(path, function(error){
+				if(error){
+					throw error;
+				}
+
+				image.quality(50).stream(function(error, stdout) {
+					if(error){
+						throw error;
+					}
+
+					var writeStream = fs.createWriteStream(path, {
+						encoding: 'base64' //TODO: verifies if it isn't binary here
+					});
+
+					stdout.pipe(writeStream);
+
+					image.deconstruct();
+
+					return true;
+				});
+			});
 		}else{
 			throw error;
 		}
 	});
-
-	fs.unlink(path, function(error){
-		if(error){
-			throw error;
-		}
-	});
-
-	image.quality(50).stream(function(error, stdout) {
-		if(error){
-			throw error;
-		}
-
-		var writeStream = fs.createWriteStream(path, {
-			encoding: 'base64'
-		});
-
-		stdout.pipe(writeStream);
-	});
-
-	image.deconstruct();
-
-	return true;
 }
 
 /**

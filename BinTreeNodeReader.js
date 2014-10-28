@@ -20,6 +20,8 @@ function BinTreeNodeReader(){
     });
 }
 
+module.exports = BinTreeNodeReader;
+
 BinTreeNodeReader.prototype = {
 	/**
 	 * Reset this.key

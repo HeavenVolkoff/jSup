@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "description": "Whatsapp javascript node.js API",
   "dependencies": {
+    "fast-csv": "^0.5.3",
     "fluent-ffmpeg": "^2.0.0-rc2",
     "gm": "^1.16.0",
     "jssha": "^1.5.0"

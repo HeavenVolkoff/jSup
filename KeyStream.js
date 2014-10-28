@@ -13,6 +13,7 @@
  */
 function KeyStream(key, macKey){
 	const DROP = 768;
+
     /*global RC4*/
 	Object.defineProperties(this, {
 		'rc4': {
