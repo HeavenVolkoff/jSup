@@ -9,7 +9,7 @@
  */
 function WhatsProt(number, identity, nickname, debug) {
 	var BinTreeNodeReader = require('./BinTreeNodeReader');
-	var BinTreeNodeWriter = require('./BinTreeNodeWriter')
+	var BinTreeNodeWriter = require('./BinTreeNodeWriter');
 
 	/**
 	 * Constant declarations.
@@ -64,10 +64,10 @@ function WhatsProt(number, identity, nickname, debug) {
 			value: 'Android'
 		},
 		'WHATSAPP_VER': {
-			value: '2.11.209'
+			value: '2.11.378'
 		},
 		'WHATSAPP_USER_AGENT': {
-			value: 'WhatsApp/2.11.209 Android/4.3 Device/GalaxyS3'
+			value: 'WhatsApp/2.11.378 Android/4.3 Device/GalaxyS3'
 		}
 	});
 
@@ -82,7 +82,8 @@ function WhatsProt(number, identity, nickname, debug) {
 		 * @type {Object}
 		 */
 		'accountInfo': {
-			writable: true
+			writable: true,
+			enumerable: true
 		},
 		/**
 		 * The challenge data file.
@@ -91,95 +92,115 @@ function WhatsProt(number, identity, nickname, debug) {
 		 * @type {String}
 		 */
 		'challengeData': {
-			writable: true
+			writable: true,
+			enumerable: true
 		},
-		'challengeDataLocation': {
-			value: '',
-			writable: true
+		'challengeDataFileName': {
+			value: 'nextChallenge.dat',
+			writable: true,
+			enumerable: true
 		},
 		'debug': {
-			value: debug || false
+			value: debug || false,
+			enumerable: true
 		},
 		'event': {
-			writable: true
+			writable: true,
+			enumerable: true
 		},
 		'groupList': {
 			value: [],
-			writable: true
+			writable: true,
+			enumerable: true
 		},
 		'identity': {
 			/**
 			 * Identity validation, if not valid compute new identity
 			 */
-			value: identity && decodeURIComponent(identity).length === 20? identity : this.buildIdentity(identity)
-		},
-		'incompleteMessage': {
-			value: '',
-			writable: true
+			value: identity && decodeURIComponent(identity).length === 20? identity : this.buildIdentity(identity),
+			enumerable: true
 		},
 		'inputKey': {
-			writable: true
+			writable: true,
+			enumerable: true
 		},
 		'outputKey': {
-			writable: true
+			writable: true,
+			enumerable: true
 		},
 		'groupId': {
 			value: false,
-			writable: true
+			writable: true,
+			enumerable: true
 		},
 		'lastId': {
 			value: false,
-			writable: true
+			writable: true,
+			enumerable: true
 		},
 		'loginStatus': {
-			value: WhatsProt.DISCONNECTED_STATUS,
-			writable: true
+			value: 'disconnected',
+			writable: true,
+			enumerable: true
 		},
 		'mediaFileInfo': {
 			value: [],
-			writable: true
+			writable: true,
+			enumerable: true
 		},
 		'mediaQueue': {
 			value: [],
-			writable: true
+			writable: true,
+			enumerable: true
 		},
 		'messageCounter': {
 			value: 1,
-			writable: true
+			writable: true,
+			enumerable: true
 		},
 		'messageQueue': {
 			value: [],
-			writable: true
+			writable: true,
+			enumerable: true
 		},
 		'name': {
 			value: nickname,
-			writable: true
+			writable: true,
+			enumerable: true
 		},
 		'newMsgBind': {
 			value: false,
-			writable: true
+			writable: true,
+			enumerable: true
 		},
 		'outQueue': {
 			value: [],
-			writable: true
+			writable: true,
+			enumerable: true
 		},
 		'password': {
-			writable: true
+			writable: true,
+			enumerable: true
 		},
 		'phoneNumber': {
-			value: number
+			value: number,
+			enumerable: true
 		},
 		'reader': {
-			value: new BinTreeNodeReader()
+			value: new BinTreeNodeReader(),
+			enumerable: true
 		},
 		'serverReceivedId': {
-			writable: true
+			writable: true,
+			enumerable: true
 		},
 		'socket': {
-			writable: true
+			writable: true,
+			enumerable: true
 		},
 		'writer': {
-			value: new BinTreeNodeWriter()
+			value: new BinTreeNodeWriter(),
+			enumerable: true
 		}
 	});
 }
@@ -202,7 +223,7 @@ WhatsProt.prototype = {
 			//TODO: this.event.connected(this.phoneNumber, this);
 		});
 		this.socket.on('data', function onMessageInbound(data){
-			console.log(data);//TODO: Bind message listener here.
+			console.log(data.toString('utf8'));//TODO: Bind message listener here.
 		});
 		this.socket.on('end', function onEnd(){
 			console.log('connection ended by the partner');//TODO: Bind connection end listener here; Emitted when the other end of the socket sends a FIN packet.
@@ -238,11 +259,6 @@ WhatsProt.prototype = {
 		this.socket.destroy();
 	},
 
-	'createFeaturesNode': function createFeaturesNode(){
-		/*global ProtocolNode*/
-		return new ProtocolNode('stream:features', null, null, null);
-	},
-
 	'openCSV': function OpenCSVFile(path, callback){
 		var fs = require('fs');
 		var csv = require('fast-csv');
@@ -250,28 +266,24 @@ WhatsProt.prototype = {
 		fs.exists(path, function(exists) {
 			if (exists) {
 				csv.fromPath(path)
-					.on('data', callback)
-					.on('end', function(){
-						console.log('done');
-					});
+					.on('data', function(data){callback(null, data);});//TODO: this function is a listener that dont stop even after the callback has returned true, check if there is a way to kill it.
 			}else{
-				callback(null, new Error('file' + path + 'not found'));
+				callback(new Error('file' + path + 'not found'), null);
 			}
 		});
 	},
 
 	'dissectPhone': function dissectCountryCodeFromPhoneNumber(path, phone, callback) {
 		//TODO: make this a database to make queries
-		this.openCSV(path, function openCSVCountries(data, error){
+		this.openCSV(path, function openCSVCountries(error, data){
 			if(!error){
 				if(phone.indexOf(data[1]) === 0){
-
 					//Hot-fix for North America Country code
 					if(data[1].substr(0, 1) === '1'){
 						data[1] = '1';
 					}
 
-					phone = {
+					var phoneInfo = {
 						'country': data[0],
 						'cc': data[1],
 						'phone': phone.substr(data[1].length),
@@ -280,22 +292,140 @@ WhatsProt.prototype = {
 						'ISO639': data[4]
 					};
 
-					callback(phone, null);
+					callback(null, phoneInfo);
 				}
 			}else{
-				console.log(error);
-				callback(null, error);
+				callback(error, null);
 			}
+		});
+	},
+
+	'createFeaturesNode': function createFeaturesNode(){
+		var ProtocolNode = require('./ProtocolNode');
+		return new ProtocolNode('stream:features', {}, {}, '');
+	},
+
+	'createAuthBlob': function createAuthBlob(callback){
+		var async = require('async');
+		var crypto = require('crypto');
+		var KeyStream = require('./KeyStream');
+		var strPad = require('./php.js').strPad;
+		var WhatsProt = this;
+
+		if(this.challengeData) {
+			async.parallel([
+				function (callback) {
+					async.waterfall(
+						[
+							function (callback) {
+								crypto.pbkdf2(WhatsProt.password, WhatsProt.challengeData, 16, 20, callback);
+							},
+							function setKeys(key, callback) {
+								key = key.toString('binary');
+								WhatsProt.inputKey = new KeyStream(key[2], key[3]);
+								WhatsProt.outputKey = new KeyStream(key[0], key[1]);
+								WhatsProt.reader.key = WhatsProt.inputKey;
+								/**
+								 * $this->writer->setKey($this->outputKey);
+								 * was commented in the original code
+								 */
+								callback(null);
+							}
+						], callback
+					);
+				},
+				function (callback) {
+					async.waterfall([
+						function (callback) {
+							WhatsProt.dissectPhone(WhatsProt.COUNTRIES, WhatsProt.phoneNumber, callback);
+						},
+						function encodeAuthMessage(phoneInfo, callback) {
+							var time = parseInt(new Date().getTime() / 100);
+							var array = '\0\0\0\0' + WhatsProt.phoneNumber + WhatsProt.challengeData + time + WhatsProt.WHATSAPP_USER_AGENT + ' MccMnc/' + strPad(phoneInfo.mcc, 3, '0', 'STR_PAD_LEFT') + '001';
+							callback(null, array);
+						}
+					], callback);
+				}
+			], function authBlobReturn(error, value) {
+				WhatsProt.challengeData = null;
+				callback(error, WhatsProt.outputKey.encodeMessage(value[1], 0, value[1].length, 0));
+			});
+		}else{
+			callback(null, ''); //new Error('ChallengeData not found')
+		}
+	},
+
+	'createAuthNode': function createAuthNode(callback){
+		var ProtocolNode = require('./ProtocolNode');
+		var authHash = {};
+		authHash.xmlns = 'urn:ietf:params:xml:ns:xmpp-sasl';
+		authHash.mechanism = 'WAUTH-2';
+		authHash.user = this.phoneNumber;
+
+		this.createAuthBlob(function authBlobCallback(error, value){
+			callback(error, new ProtocolNode('auth', authHash, {}, value));
+		});
+	},
+
+	'sendData': function sendData(data, callback){
+		if(this.socket){
+			this.socket.write(data, callback);
+		}
+	},
+
+	'sendNode': function sendNode(node, encrypt, callback){
+		encrypt = encrypt || true;
+
+		console.log(node.nodeString('tx '));
+		this.sendData(this.writer.write(node, encrypt), callback);
+	},
+
+	'doLogin': function doLogin() {
+		var WhatsProt = this;
+		var async = require('async');
+
+		this.writer.resetKey();
+		this.reader.resetKey();
+
+		var resources = this.WHATSAPP_DEVICE + '-' + this.WHATSAPP_VER + '-' + this.PORT;
+
+		async.series([
+			function authNode(callback){
+				var data = WhatsProt.writer.startStream(WhatsProt.WHATSAPP_SERVER, resources);
+				var feat = WhatsProt.createFeaturesNode();
+				callback(null, data, feat);
+			},
+			function authNode(callback){
+				WhatsProt.createAuthNode(callback);
+			}
+		],function sendData(error, data){
+			async.series([
+				function sendData(callback){
+					WhatsProt.sendData(data[0][0], function sendDataCallback(){
+						callback(null);
+					});
+				},
+				function sendFeat(callback){
+					WhatsProt.sendNode(data[0][1], true, function sendFeatCallback(){
+						callback(null);
+					});
+				},
+				function sendAuth(callback){
+					WhatsProt.sendNode(data[1], true, function sendAuthCallback(){
+						callback(null);
+					});
+				}
+			], function(error, data) {
+				console.log('true');
+			});
 		});
 	}
 };
 
+var teste = new WhatsProt('5521989316579','012345678901234','Xing Ling Lee', true);
+teste.password = new Buffer('eW8hwE74KhuApT3n6VZihPt+oPI=', 'base64').toString('binary');
+teste.connect();
+teste.doLogin();
 
-var data = new WhatsProt('5521989316579', '012345678901234', 'teste', true);
-data.dissectPhone(data.COUNTRIES, data.phoneNumber, function callback(output, error){
-	if(!error){
-		console.log(output);
-	}else{
-		console.log(error);
-	}
-});
+
+

@@ -10,28 +10,36 @@
 function ProtocolNode(tag, attributeHash, children, data){
 	Object.defineProperties(this, {
 		'data': {
-			value: data
+			value: data,
+			enumerable: true
 		},
 		'children': {
-			value: children
+			value: children,
+			enumerable: true
 		},
-		'attributHash': {
+		'attributeHash': {
 			//TODO:AttributeHash must be an object as in php it is an HashTable
-			value: attributeHash
+			value: attributeHash,
+			enumerable: true
 		},
 		'tag': {
-			value: tag
+			value: tag,
+			enumerable: true
 		}
 	});
 }
 
+module.exports = ProtocolNode;
+
 	ProtocolNode.prototype = {
 		/**
 		 * @param {string} indent
-		 * @param {bool} isChild
+		 * @param {bool} [isChild = false]
 		 * @return {string}
 		 */
 		nodeString: function generateNodeString(indent, isChild){
+			isChild = isChild || false;
+
 			//Formaters
 			//TODO: on php it use < or &lt, depending if runs on terminal or not, verifies if on javascript it also need this
 			var lower = '<';
@@ -39,11 +47,14 @@ function ProtocolNode(tag, attributeHash, children, data){
 			var nul = '\n';
 			//---------
 
-			var string = indent + lower + this.tag();
+			var string = indent + lower + this.tag;
 			if(!this.attributeHash){
-				this.attributeHash.forEach(function(value, index){
-					string += ' ' + index + '="' + value + '"';
-				});
+				for(var key in this.attributeHash){
+					if(this.attributeHash.hasOwnProperty(key)){
+						var value = this.attributeHash[key];
+						string += ' ' + key + '="' + value + '"';
+					}
+				}
 			}
 			string += greater;
 			if(this.data.length > 0){
@@ -59,9 +70,12 @@ function ProtocolNode(tag, attributeHash, children, data){
 				string += nul;
 				var childArray = [];
 
-				this.children.forEach(function(value){
-					childArray.push(value.nodeString(indent + ' ', true));
-				});
+				for(var key1 in this.children){
+					if(this.children.hasOwnProperty(key1)){
+						var value1 = this.children[key1];
+						childArray.push(value1.nodeString(indent + ' ', true));
+					}
+				}
 
 				string += childArray.join(nul);
 				string += nul + indent;

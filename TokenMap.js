@@ -409,6 +409,8 @@ function TokenMap(){
 		}
 	});
 }
+module.exports = TokenMap;
+
 	/**
 	 *
 	 * @type {{getToken: getToken, getTokenIndex: getTokenIndex}}
@@ -453,12 +455,12 @@ function TokenMap(){
 		 */
 		'getTokenIndex': function getTokenIndex(token){
 			var tokenIndex = this.primaryStrings.indexOf(token);
-			if(tokenIndex){
+			if(tokenIndex !== -1){
 				return [false, tokenIndex];
 			}
 
 			tokenIndex = this.secondaryStrings.indexOf(token);
-			if(tokenIndex){
+			if(tokenIndex !== -1){
 				return [true, tokenIndex];
 			}
 			return null;

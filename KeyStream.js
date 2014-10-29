@@ -12,12 +12,12 @@
  * @constructor
  */
 function KeyStream(key, macKey){
-	const DROP = 768;
+	var RC4 = require('./RC4');
 
     /*global RC4*/
 	Object.defineProperties(this, {
 		'rc4': {
-			'value': new RC4(key, DROP)
+			'value': new RC4(key, 768)
 		},
 		'macKey': {
 			value: new Buffer(macKey)
@@ -29,31 +29,40 @@ function KeyStream(key, macKey){
 	});
 }
 
+module.exports = KeyStream;
+
 KeyStream.prototype = {
 	/**
 	 * Generate the crypto keys from password with salt nonce
 	 *
 	 * @param {string} password
 	 * @param {string} nonce
+	 * @param {function} callback
 	 * @returns {string[]}
 	 */
-	 'generateKeys': function generateKeys(password, nonce){
+	 'generateKeys': function generateKeys(password, nonce, callback){
+		var crypto = require('crypto');
+		var async = require('async');
         var array = [];
-        var crypto = require('crypto');
+		var error = [];
+		var count = 0;
 
-		var func = function fillArray(err, key){
-			if(!err){
-				array.push(key.toString('binary'));
-			}else{
-				throw  err;
-			}
-		};
-
-        for(var count = 0; count < 4; count++){
-            var pseudoNonce = nonce + String.fromCharCode(count + 1);
-            crypto.pbkdf2(password, pseudoNonce, 2, 20, func);
-        }
-        return array;
+		async.whilst(
+			function checkCounter(){
+				return count < 4;
+			},
+			crypto.pbkdf2(password, nonce + String.fromCharCode(count + 1), 2, 20,
+				function fillArray(err, key){
+					if(!err){
+						array.push(key.toString('binary'));
+					}else{
+						error.push(err);
+					}
+					count++;
+				}
+			),
+			callback(array, error)
+		);
 	 },
 
 	/**

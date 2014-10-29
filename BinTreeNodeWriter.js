@@ -7,6 +7,7 @@
 function BinTreeNodeWriter(){
 	Object.defineProperties(this, {
 		'output': {
+			value: '',
 			writable: true
 		},
 		'key': {
@@ -136,7 +137,8 @@ BinTreeNodeWriter.prototype = {
 	 * @param tag
 	 */
 	'writeString' : function writeString(tag) {
-		/*global TokenMap*/
+		var TokenMap = require('./TokenMap');
+
 		var tokenMap = new TokenMap();
 		var token = tokenMap.getTokenIndex(tag);
 
@@ -148,7 +150,7 @@ BinTreeNodeWriter.prototype = {
 		}else{
 			var index = tag.indexOf('@');
 
-			if(index){
+			if(index !== -1){
 				var server = tag.substr(index + 1);
 				var user = tag.substr(0, index);
 				this.writeJabberId(user, server);
@@ -181,10 +183,13 @@ BinTreeNodeWriter.prototype = {
 	 */
 	'writeAttributes': function writeAttributes(attributes){
 		if(attributes){
-			attributes.forEach(function(value, key){
-				this.writeString(key);
-				this.writeString(value);
-			});
+			for(var key in attributes){
+				if(attributes.hasOwnProperty(key)){
+					var value = attributes[key];
+					this.writeString(key);
+					this.writeString(value);
+				}
+			}
 		}
 	},
 
@@ -215,7 +220,7 @@ BinTreeNodeWriter.prototype = {
 		var size = this.output.length;
 		var data = this.output;
 
-		if(this.key !== null && this.key !== undefined && encrypt){
+		if(this.key && encrypt){
 			var blockSize = this.getInt24(size);
 			//encrypt
 			data = this.key.encodeMessage(data, size, 0, size);
@@ -240,15 +245,16 @@ BinTreeNodeWriter.prototype = {
 	 * @param {ProtocolNode} node
 	 */
 	'writeInternal': function writeInternal(node){
+		console.log(node);
 		var length = 1;
 
 		if(node.attributeHash !== null){
-			length += node.attributeHash.length * 2;
+			length += Object.keys(node.attributeHash).length * 2;
 		}
-		if(node.children.length > 0){
+		if(Object.keys(node.children).length > 0){
 			length += 1;
 		}
-		if(node.data.length > 0){
+		if(node.data.length > 0){//TODO: verifies if data is an object or not
 			length += 1;
 		}
 
@@ -260,11 +266,14 @@ BinTreeNodeWriter.prototype = {
 			this.writeBytes(node.data);
 		}
 		if(node.children){
-			this.writeListStart(node.children.length);
+			this.writeListStart(Object.keys(node.children).length);
 
-			node.children.forEach(function(child){
-				this.writeInternal(child);
-			});
+			for(var key in this.children){
+				if(this.children.hasOwnProperty(key)){
+					var child = this.children[key];
+					this.writeInternal(child);
+				}
+			}
 		}
 	},
 
@@ -295,7 +304,7 @@ BinTreeNodeWriter.prototype = {
 	 * @returns {string}
 	 */
 	'startStream': function startStream(domain, resource){
-		var attributes = {'to': null, 'resorce': null};
+		var attributes = {to: '', resource: ''};
 
 		var header = 'WA';
 		header += this.writeInt8(1);
@@ -303,8 +312,8 @@ BinTreeNodeWriter.prototype = {
 
 		attributes.to = domain;
 		attributes.resource = resource;
-		this.writeListStart(attributes.length * 2 + 1);
 
+		this.writeListStart(Object.keys(attributes).length * 2 + 1);
 		this.output += '\x01';
 		this.writeAttributes(attributes);
 

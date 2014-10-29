@@ -12,7 +12,8 @@
  * @constructor [RC4]
  */
 function RC4(key, drop){
-    /*global range*/
+    var range = require('./php.js').range;
+
 	this.s = range(0, 255);
 	this.i = 0;
 	this.j = 0;
@@ -32,6 +33,8 @@ function RC4(key, drop){
 		}
 	});
 }
+
+module.exports = RC4;
 
 RC4.prototype = {
 	/**
