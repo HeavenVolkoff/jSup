@@ -124,10 +124,10 @@ BinTreeNodeWriter.prototype = {
 	 * @param {int} token
 	 */
 	'writeToken': function writeToken(token){
-		if(token < 245){
+		if(token < 0xF5){
 			this.output += String.fromCharCode(token);
-		}else if(token <= 500){
-			this.output += '\xfe' + String.fromCharCode(token - 245);
+		}else if(token <= 0x1F4){
+			this.output += '\xfe' + String.fromCharCode(token - 0xF5);
 		}
 	},
 
@@ -245,13 +245,12 @@ BinTreeNodeWriter.prototype = {
 	 * @param {ProtocolNode} node
 	 */
 	'writeInternal': function writeInternal(node){
-		console.log(node);
 		var length = 1;
 
-		if(node.attributeHash !== null){
+		if(node.attributeHash){
 			length += Object.keys(node.attributeHash).length * 2;
 		}
-		if(Object.keys(node.children).length > 0){
+		if(node.children && Object.keys(node.children).length > 0){
 			length += 1;
 		}
 		if(node.data.length > 0){//TODO: verifies if data is an object or not
@@ -262,9 +261,10 @@ BinTreeNodeWriter.prototype = {
 		this.writeString(node.tag);
 		this.writeAttributes(node.attributeHash);
 
-		if(node.data > 0){
+		if(node.data.length > 0){
 			this.writeBytes(node.data);
 		}
+
 		if(node.children){
 			this.writeListStart(Object.keys(node.children).length);
 

@@ -41,14 +41,13 @@ module.exports = ProtocolNode;
 			isChild = isChild || false;
 
 			//Formaters
-			//TODO: on php it use < or &lt, depending if runs on terminal or not, verifies if on javascript it also need this
 			var lower = '<';
 			var greater = '>';
 			var nul = '\n';
 			//---------
 
 			var string = indent + lower + this.tag;
-			if(!this.attributeHash){
+			if(this.attributeHash){
 				for(var key in this.attributeHash){
 					if(this.attributeHash.hasOwnProperty(key)){
 						var value = this.attributeHash[key];
@@ -80,9 +79,11 @@ module.exports = ProtocolNode;
 				string += childArray.join(nul);
 				string += nul + indent;
 			}
+
+			string += lower + '/' + this.tag + greater;
+
 			if(!isChild){
 				string += nul;
-				//TODO: on php it add another nul if it isn` running inside the command line, verifies if on javascript it also need this
 			}
 
 			return string;
@@ -176,7 +177,7 @@ module.exports = ProtocolNode;
 		 * @return string
 		 */
 		toString: function toString(){
-            /*global print_r*/
+			var printReadable = require('./php.js').printReadable;
 			//TODO: verifies if it works on web (modified php.js method)
 			var readableNode = {
 				'tag': this.tag,
@@ -185,7 +186,7 @@ module.exports = ProtocolNode;
 				'data': this.data
 			};
 
-			return print_r(readableNode ,true);
+			return printReadable(readableNode ,true);
 		}
 
 	};

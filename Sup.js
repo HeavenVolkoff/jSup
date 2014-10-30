@@ -7,9 +7,10 @@
  *
  * @constructor
  */
-function WhatsProt(number, identity, nickname, debug) {
+function Sup(number, identity, nickname, debug) {
 	var BinTreeNodeReader = require('./BinTreeNodeReader');
 	var BinTreeNodeWriter = require('./BinTreeNodeWriter');
+
 
 	/**
 	 * Constant declarations.
@@ -71,14 +72,13 @@ function WhatsProt(number, identity, nickname, debug) {
 		}
 	});
 
-
 	// TODO: finish commenting the properties
 	Object.defineProperties(this, {
 		/*global BinTreeNodeWriter, BinTreeNodeReader*/
 		/**
 		 * The Account Info object.
 		 *
-		 * @name WhatsProt#accountInfo
+		 * @name Sup#accountInfo
 		 * @type {Object}
 		 */
 		'accountInfo': {
@@ -88,7 +88,7 @@ function WhatsProt(number, identity, nickname, debug) {
 		/**
 		 * The challenge data file.
 		 *
-		 * @name WhatsProt#achallengeData
+		 * @name Sup#achallengeData
 		 * @type {String}
 		 */
 		'challengeData': {
@@ -205,8 +205,7 @@ function WhatsProt(number, identity, nickname, debug) {
 	});
 }
 
-
-WhatsProt.prototype = {
+Sup.prototype = {
 	'buildIdentity': function computeIdentitySha1(identity){
 		var crypto = require('crypto');
 		var sha1 = crypto.createHash('sha1');
@@ -223,7 +222,54 @@ WhatsProt.prototype = {
 			//TODO: this.event.connected(this.phoneNumber, this);
 		});
 		this.socket.on('data', function onMessageInbound(data){
-			console.log(data.toString('utf8'));//TODO: Bind message listener here.
+			var async = require('async');
+			console.log(data);//TODO: Bind message listener here.
+
+			async.waterfall([
+				function countLength(callback){
+					if(data.length > 3) {
+						var jump = [[0, (data[1] << 8) | data[2]]];
+						if(data[jump[0][0] + (jump[0][1] - 1) + 3] !== undefined) {
+							for (var counter = 1; counter + 2 < data.length; counter++) {
+								counter += (data[counter] << 8) | data[counter + 1];
+								if (counter + 2 < data.length) {
+									if (data[counter + 1] !== undefined && data[counter + 2] !== undefined) {
+										jump.push([counter += 2, (data[counter + 1] << 8) | data[counter + 2]]);
+									} else {
+										callback(new Error('Invalid Message', 'MSG_INVAL'), null);
+									}
+									if (data[jump[jump.length - 1][0] + (jump[jump.length - 1][1] - 1) + 3] === undefined) {
+										callback(new Error('Invalid Message', 'MSG_INVAL'), null);
+									}
+								}
+							}
+							callback(null, jump);
+						}else{
+							callback(new Error('Invalid Message', 'MSG_INVAL'), null);
+						}
+					}else{
+						callback(new Error('Message Size Error', 'MSG_SIZE'), null);
+					}
+				}
+			], function readMessages(error, jump){
+				if(!error) {
+					async.each(jump,
+						function decodeMessage(jump, callback) {
+							var message = data.slice(jump[0], jump[0] + 3 + jump[1]);
+							console.log('message: ');
+							console.log(message);
+							callback();
+						},
+						function(error){
+							if(error){
+								console.log(error);//bind message error listener
+							}
+						}
+					);
+				}else{
+					throw error;//TODO: Bind error listener
+				}
+			});
 		});
 		this.socket.on('end', function onEnd(){
 			console.log('connection ended by the partner');//TODO: Bind connection end listener here; Emitted when the other end of the socket sends a FIN packet.
@@ -240,7 +286,7 @@ WhatsProt.prototype = {
 		});
 		this.socket.on('close', function onClose(hadError){
 			if(hadError){
-				console.log('connection closed by you');//TODO: Bind connection closed listener here.
+				console.log('connection closed');//TODO: Bind connection closed listener here.
 			}else{
 				console.log('connection closed due to a transmission error.');//TODO: Bind connection closed error listener here.
 			}
@@ -302,7 +348,7 @@ WhatsProt.prototype = {
 
 	'createFeaturesNode': function createFeaturesNode(){
 		var ProtocolNode = require('./ProtocolNode');
-		return new ProtocolNode('stream:features', {}, {}, '');
+		return new ProtocolNode('stream:features', null, null, '');
 	},
 
 	'createAuthBlob': function createAuthBlob(callback){
@@ -310,7 +356,7 @@ WhatsProt.prototype = {
 		var crypto = require('crypto');
 		var KeyStream = require('./KeyStream');
 		var strPad = require('./php.js').strPad;
-		var WhatsProt = this;
+		var SupPrototype = this;
 
 		if(this.challengeData) {
 			async.parallel([
@@ -318,13 +364,13 @@ WhatsProt.prototype = {
 					async.waterfall(
 						[
 							function (callback) {
-								crypto.pbkdf2(WhatsProt.password, WhatsProt.challengeData, 16, 20, callback);
+								crypto.pbkdf2(SupPrototype.password, SupPrototype.challengeData, 16, 20, callback);
 							},
 							function setKeys(key, callback) {
 								key = key.toString('binary');
-								WhatsProt.inputKey = new KeyStream(key[2], key[3]);
-								WhatsProt.outputKey = new KeyStream(key[0], key[1]);
-								WhatsProt.reader.key = WhatsProt.inputKey;
+								SupPrototype.inputKey = new KeyStream(key[2], key[3]);
+								SupPrototype.outputKey = new KeyStream(key[0], key[1]);
+								SupPrototype.reader.key = SupPrototype.inputKey;
 								/**
 								 * $this->writer->setKey($this->outputKey);
 								 * was commented in the original code
@@ -337,18 +383,18 @@ WhatsProt.prototype = {
 				function (callback) {
 					async.waterfall([
 						function (callback) {
-							WhatsProt.dissectPhone(WhatsProt.COUNTRIES, WhatsProt.phoneNumber, callback);
+							SupPrototype.dissectPhone(SupPrototype.COUNTRIES, SupPrototype.phoneNumber, callback);
 						},
 						function encodeAuthMessage(phoneInfo, callback) {
 							var time = parseInt(new Date().getTime() / 100);
-							var array = '\0\0\0\0' + WhatsProt.phoneNumber + WhatsProt.challengeData + time + WhatsProt.WHATSAPP_USER_AGENT + ' MccMnc/' + strPad(phoneInfo.mcc, 3, '0', 'STR_PAD_LEFT') + '001';
+							var array = '\0\0\0\0' + SupPrototype.phoneNumber + SupPrototype.challengeData + time + SupPrototype.WHATSAPP_USER_AGENT + ' MccMnc/' + strPad(phoneInfo.mcc, 3, '0', 'STR_PAD_LEFT') + '001';
 							callback(null, array);
 						}
 					], callback);
 				}
 			], function authBlobReturn(error, value) {
-				WhatsProt.challengeData = null;
-				callback(error, WhatsProt.outputKey.encodeMessage(value[1], 0, value[1].length, 0));
+				SupPrototype.challengeData = null;
+				callback(error, SupPrototype.outputKey.encodeMessage(value[1], 0, value[1].length, 0));
 			});
 		}else{
 			callback(null, ''); //new Error('ChallengeData not found')
@@ -363,13 +409,14 @@ WhatsProt.prototype = {
 		authHash.user = this.phoneNumber;
 
 		this.createAuthBlob(function authBlobCallback(error, value){
-			callback(error, new ProtocolNode('auth', authHash, {}, value));
+			callback(error, new ProtocolNode('auth', authHash, null, value));
 		});
 	},
 
 	'sendData': function sendData(data, callback){
 		if(this.socket){
-			this.socket.write(data, callback);
+			console.log(new Buffer(data, 'binary').toString('base64'));
+			this.socket.write(data, 'binary',callback);
 		}
 	},
 
@@ -381,7 +428,7 @@ WhatsProt.prototype = {
 	},
 
 	'doLogin': function doLogin() {
-		var WhatsProt = this;
+		var SupPrototype = this;
 		var async = require('async');
 
 		this.writer.resetKey();
@@ -391,38 +438,36 @@ WhatsProt.prototype = {
 
 		async.series([
 			function authNode(callback){
-				var data = WhatsProt.writer.startStream(WhatsProt.WHATSAPP_SERVER, resources);
-				var feat = WhatsProt.createFeaturesNode();
+				var data = SupPrototype.writer.startStream(SupPrototype.WHATSAPP_SERVER, resources);
+				var feat = SupPrototype.createFeaturesNode();
 				callback(null, data, feat);
 			},
 			function authNode(callback){
-				WhatsProt.createAuthNode(callback);
+				SupPrototype.createAuthNode(callback);
 			}
 		],function sendData(error, data){
 			async.series([
 				function sendData(callback){
-					WhatsProt.sendData(data[0][0], function sendDataCallback(){
+					SupPrototype.sendData(data[0][0], function sendDataCallback(){
 						callback(null);
 					});
 				},
 				function sendFeat(callback){
-					WhatsProt.sendNode(data[0][1], true, function sendFeatCallback(){
+					SupPrototype.sendNode(data[0][1], true, function sendFeatCallback(){
 						callback(null);
 					});
 				},
 				function sendAuth(callback){
-					WhatsProt.sendNode(data[1], true, function sendAuthCallback(){
+					SupPrototype.sendNode(data[1], true, function sendAuthCallback(){
 						callback(null);
 					});
 				}
-			], function(error, data) {
-				console.log('true');
-			});
+			]);
 		});
 	}
 };
 
-var teste = new WhatsProt('5521989316579','012345678901234','Xing Ling Lee', true);
+var teste = new Sup('5521989316579','012345678901234','Xing Ling Lee', true);
 teste.password = new Buffer('eW8hwE74KhuApT3n6VZihPt+oPI=', 'base64').toString('binary');
 teste.connect();
 teste.doLogin();
