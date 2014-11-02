@@ -77,7 +77,7 @@ module.exports = MessageNode;
 		'write': function writeToInternalBuffer(data, encoding){
 			if(Buffer.isBuffer(data)){
 				//if data is a buffer just push it to message array
-				this.message.push(data);
+				this.message = data;
 			}else if(typeof data === 'string'){
 				//if data is a string encode it into a buffer and push it to message array. Only accepts Hex and Binary encoding
 				switch(encoding){
@@ -166,17 +166,12 @@ module.exports = MessageNode;
 		/**
 		 * Clear Internal Buffer and write new value to it
 		 *
-		 * @param {Buffer} data
+		 * @param {Buffer} [data = null]
 		 * @returns {boolean}
 		 */
 		'overwrite': function overwriteInternalBuffer(data){
-			if (Buffer.isBuffer(data)){
-				this.clearIntBuff();
-				this.message = data;
-				return true;
-			}
-
-			return false;
+			this.clearIntBuff();
+			return this.write(data);
 		},
 
 		/**

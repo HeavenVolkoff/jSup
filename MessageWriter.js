@@ -34,7 +34,7 @@ MessageWriter.prototype = {
 	},
 
 	/**
-	 * Create a New Message Node of given type and push it into Output array, call callback with message
+	 * Create a New Message Node of given type and push it into Output array
 	 *
 	 * @param {String} type
 	 * @param {Object} info
@@ -69,20 +69,52 @@ MessageWriter.prototype = {
 			case 'state':
 				//TODO: Implement state message composer
 				break;
-			case 'startStream':
+
+			/**
+			 * ===================== Special Cases ==========================
+			 ***************** Only to be used internally *******************
+			 */
+
+			case 'start:stream':
 				if(info.hasOwnProperty('to') && info.hasOwnProperty('from')){
 					messageNode = new MessageNode(null, {to: info.domain, from: info.resource}, null, null);
 
-					self.pushMsgNode(messageNode);
+					index = self.pushMsgNode(messageNode);
 
 					process.nextTick(function(){
-						self.startStream(index);
 						self.emit('composing', index);
+						self.startStream(index);
 					});
 				}else{
 					self.emit('error', new Error('Missing property in object info' + info, 'MISSING_PROP'));
 				}
 				break;
+
+			case 'stream:features':
+				messageNode = new MessageNode('stream:features', null, null, null);
+
+				index = self.pushMsgNode(messageNode);
+
+				process.nextTick(function(){
+					self.emit('composing', index);
+					self.write(index, false);
+				});
+				break;
+
+			case 'auth':
+				if(info.hasOwnProperty('authHash') && info.hasOwnProperty('authBlob')){
+					messageNode = new MessageNode('auth', info.authHash, null, info.authBlob);
+
+					index = self.pushMsgNode(messageNode);
+
+					process.nextTick(function(){
+						self.emit('composing', index);
+						//Todo: WARNING info.authBlob Needs to be encrypted before write the MessageNode
+						self.write(index, false);
+					});
+				}else{
+					self.emit('error', new Error('Missing property in object info' + info, 'MISSING_PROP'));
+				}
 		}
 	},
 
@@ -93,6 +125,7 @@ MessageWriter.prototype = {
 	 * @returns {Number} MessageNode Index
 	 */
 	'pushMsgNode': function pushMessageNodeToInternalBuffer(messageNode){
+		this.slimOutput();
 		var index = this.output.indexOf(null);
 
 		if(index !== -1){
@@ -102,6 +135,28 @@ MessageWriter.prototype = {
 		}
 
 		this.emit('pushed', index);
+	},
+
+	/**
+	 * Clear the given position from Output array
+	 *
+	 * @param {int} index
+	 */
+	'clearPos': function clearOutputIndePosition(index){
+		this.output[index].clearIntBuff();
+		delete this.output[index];
+		this.output[index] = null;
+	},
+
+	/**
+	 * Decrease the Output Array as it Become Empty
+	 * TODO: Maybe Do This Function Using Async Parallel
+	 */
+	'slimOutput': function decreaseOutputArrayAsItBecomeEmpty(){
+		for(var length = this.output.length - 1; this.output[length] === null; length--){
+			delete this.output[length];
+			this.output = this.output.slice(0, length);
+		}
 	},
 
 	/**
@@ -281,7 +336,7 @@ MessageWriter.prototype = {
 
 		if(this.key && encrypt){
 			this.output[index].overwrite(this.key.encodeMessage(data, size, 0, size));//TODO: Remake encoding function
-			size = data.length;
+			size = this.output.length;
 
 			var blockSize = new Buffer(3);
 			blockSize[0] = basicFunc.shiftLeft(8, 4) | basicFunc.shiftRight((size & 0xFF0000), 16);
@@ -293,6 +348,8 @@ MessageWriter.prototype = {
 		this.output[index].writeHeader(size);
 
 		this.emit('written', this.output[index].getMessage(), index);
+
+		this.clearPos(index); //Clear output position after emitting written event
 	},
 
 	/**
@@ -307,7 +364,7 @@ MessageWriter.prototype = {
 
 		this.writeInfo(index);
 
-		this.flushBuffer(index, encrypt);
+		process.nextTick(this.flushBuffer(index, encrypt)); //TODO: Maybe nextTick isn't needed
 	}
 };
 
@@ -321,9 +378,9 @@ MessageWriter.prototype = {
 MessageWriter.prototype.startStream = function startStream(index){
 	this.output[index].write('WA').write(1).write(4);
 
-	this.writeLength(index, Object.keys(this.output.attributeHash).length * 2 + 1);
+	this.writeLength(index, Object.keys(this.output[index].attributeHash).length * 2 + 1);
 	this.output.write('\x01');
-	this.writeAttributes(index, attributes);
+	this.writeAttributes(index, this.output[index].attributeHash);
 
-	process.nextTick(flushBuffer(index, false)); //TODO: Maybe nextTick isn't needed
+	process.nextTick(this.flushBuffer(index, false)); //TODO: Maybe nextTick isn't needed
 };
