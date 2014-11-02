@@ -8,9 +8,9 @@
  * Check if it is Node.js environment
  * @returns {boolean}
  */
-function isNode(){
+module.exports.isNode = function isNode(){
 	return module !== 'undefined' && module.exports;
-}
+};
 
 /**
  * Ensure escaped special character inside a RegExp string
@@ -29,7 +29,7 @@ function escapeRegExp(string) {
  *
  * @return {string} bin
  */
-function hexToBin(hex){
+module.exports.hexToBin = function hexToBin(hex){
 	var bytes = [];
 
 	for(var count = 0; count < hex.length-1; count += 2){
@@ -37,6 +37,15 @@ function hexToBin(hex){
 	}
 
 	return String.fromCharCode.apply(String, bytes);
+};
+
+module.exports.shiftRight = function shiftRight(int, shift){
+	return Number(int) >>> shift;
+};
+
+module.exports.shiftLeft = function shiftLeft(int, shift){
+	var result = Math.floor(Number(int)) * Math.pow(2, shift);
+	return isNaN(result)? 0 : result;
 }
 
 /**
