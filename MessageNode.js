@@ -156,7 +156,7 @@ module.exports = MessageNode;
 
 				buffer.writeUInt32BE(buff, 0);
 				this.pushAsFirst(buffer.slice(-3));
-			}else{
+			}else if(buff){
 				console.log(new Error('Trying To Write Non-Buffer Object as Header', 'HEADER_NO_BUFFER'));
 			}
 
