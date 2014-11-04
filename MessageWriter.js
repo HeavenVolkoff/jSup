@@ -13,10 +13,14 @@ function MessageWriter(){
 	EventEmitter.call(this); //Call EventEmitter Constructor
 
 	this.output = [];        //Array of MessageNode
-	this.cleaning = 0;       //Cleaning Control
+	this.control = [];       //Array of Index
 
 	Object.defineProperties(this, {
-		'key': {
+		key: {
+			writable: true
+		},
+		writing: {
+			value: false,
 			writable: true
 		}
 	});
@@ -56,10 +60,6 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 
 				index = self.pushMsgNode(messageNode);
 
-				process.nextTick(function(){
-					self.emit('composing', index);
-					self.write(index, true);
-				});
 				break;
 			}else{
 				return new Error('Missing property in object info: ' + info, 'MISSING_PROP');
@@ -93,45 +93,39 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 
 		case 'start:stream':
 			if(info.hasOwnProperty('domain') && info.hasOwnProperty('resource')){
-				messageNode = new MessageNode(null, {to: info.domain, resource: info.resource}, null, null);
+				messageNode = new MessageNode(null, {to: info.domain, resource: info.resource}, null, null, false);
 
-				index = self.pushMsgNode(messageNode);
+				index = self.pushMsgNode(messageNode, false);
 
-				process.nextTick(function(){
-					self.emit('composing', index);
-					self.startStream(index);
-				});
+				self.startStream(index);
 			}else{
 				self.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
 			}
 			break;
 
 		case 'stream:features':
-			messageNode = new MessageNode('stream:features', null, null, null);
+			messageNode = new MessageNode('stream:features', null, null, null, false);
 
 			index = self.pushMsgNode(messageNode);
 
-			process.nextTick(function(){
-				self.emit('composing', index);
-				self.write(index, false);
-			});
 			break;
 
 		case 'auth':
 			if(info.hasOwnProperty('authHash') && info.hasOwnProperty('authBlob')){
 				//Todo: WARNING info.authBlob Needs to be encrypted before write the MessageNode
-				messageNode = new MessageNode('auth', info.authHash, null, info.authBlob);
+				messageNode = new MessageNode('auth', info.authHash, null, info.authBlob, false);
 
 				index = self.pushMsgNode(messageNode);
 
-				process.nextTick(function(){
-					self.emit('composing', index);
-					self.write(index, false);
-				});
 			}else{
 				self.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
 			}
 			break;
+	}
+
+
+	if(index) {
+		this.write(this.control.length);
 	}
 
 	return index;
@@ -141,9 +135,12 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
  * Push New MessageNode into Output array and return it's index
  *
  * @param {MessageNode} messageNode
+ * @param {Boolean} [control = true]
  * @returns {Number} MessageNode Index
  */
-MessageWriter.prototype.pushMsgNode = function pushMessageNodeToInternalBuffer(messageNode){
+MessageWriter.prototype.pushMsgNode = function pushMessageNodeToInternalBuffer(messageNode, control){
+	control = typeof control === 'boolean'? control : true;
+
 	var index = this.output.indexOf(null);
 
 	if(index !== -1){
@@ -152,6 +149,9 @@ MessageWriter.prototype.pushMsgNode = function pushMessageNodeToInternalBuffer(m
 		index = this.output.push(messageNode) - 1; //Don't know why but Array.prototype.push return the index + 1
 	}
 
+	if(control){
+		this.control.push(index);
+	}
 	this.emit('pushed', index);
 
 	return index;
@@ -160,20 +160,39 @@ MessageWriter.prototype.pushMsgNode = function pushMessageNodeToInternalBuffer(m
 /**
  * Write MessageNode
  *
- * @param {int} index
- * @param {boolean} [encrypt = true]
+ * @param {int} length
+ * @param {boolean} [childProcess = false]
  * @returns {Buffer}
  */
-MessageWriter.prototype.write = function write(index, encrypt){
+MessageWriter.prototype.write = function write(length, childProcess){
+	childProcess = childProcess || false;
+
 	var self = this;
+	var async = require('async');
 
-	encrypt = encrypt || true;
-
-	self.writeInfo(index);
-
-	process.nextTick(function(){
-		self.flushBuffer(index, encrypt);
-	}); //TODO: Maybe nextTick isn't needed
+	if(!self.writing || childProcess) {
+		if(length > 0) {
+			self.writing = true;
+			async.each(
+				this.control.slice(0, length),
+				function (index, callback) {
+					self.emit('composing', index);
+					self.writeInfo(index);
+					self.flushBuffer(index);
+					callback(null);
+				},
+				function () {
+					self.control = self.control.slice(length);
+					process.nextTick(function () {
+						self.write(self.control.length, true);
+					});
+				}
+			);
+		}else{
+			self.writing = false;
+			self.slimOutput();
+		}
+	}
 };
 
 /**
@@ -191,25 +210,18 @@ MessageWriter.prototype.clearPos = function clearOutputIndexPosition(index){
 	self.output[index].clearIntBuff();
 	delete self.output[index];
 	self.output[index] = null;
-
-	self.cleaning++; //Control the number of times SlimOutput will execute in one tick, so it do not run twice in a row
-	if(self.cleaning > 2) {
-		process.nextTick(function () {
-			self.slimOutput(); //Add SlimOutput to be execute in the next tick, to clean Output Array if needed;
-		});
-	}
 };
 
 /**
  * Decrease the Output Array as it Become Empty
- * TODO: Maybe Do This Function Using Async Parallel
  */
 MessageWriter.prototype.slimOutput = function decreaseOutputArrayAsItBecomeEmpty(){
-	for(var length = this.output.length - 1; this.output[length] === null; length--){
+	var length = 0;
+
+	for(length = this.output.length - 1; this.output[length] === null; length--) {
 		delete this.output[length];
-		this.output = this.output.slice(0, length);
 	}
-	this.cleaning = 0;
+	this.output = this.output.slice(0, length);
 };
 
 /**
@@ -376,20 +388,17 @@ MessageWriter.prototype.writeInfo = function writeInternalInfo(index, child){
  * Write message header and encrypt it if needed
  *
  * @param {int} index
- * @param {boolean} [encrypt = true]
  * @param {Buffer} [header = null]
  * @returns {Buffer}
  */
-MessageWriter.prototype.flushBuffer = function flushBuffer(index, encrypt, header){
+MessageWriter.prototype.flushBuffer = function flushBuffer(index, header){
 	var basicFunc = require('./BasicFunctions');
 	header = Buffer.isBuffer(header) ? header : null;
-
-	encrypt = encrypt || true;
 
 	var size = this.output[index].length;
 	var data = this.output[index].getMessage();
 
-	if(this.key && encrypt){
+	if(this.key && this.output[index].encrypt){
 		this.output[index].overwrite(this.key.encodeMessage(data, size, 0, size));//TODO: I think the encryption is working (but who knows)
 		size = this.output.length;
 
@@ -420,6 +429,7 @@ MessageWriter.prototype.flushBuffer = function flushBuffer(index, encrypt, heade
  */
 MessageWriter.prototype.startStream = function startStream(index){
 	var self = this;
+	self.emit('composing', index);
 
 	var header = new Buffer(4);
 	header.write('WA', 0);
@@ -430,9 +440,7 @@ MessageWriter.prototype.startStream = function startStream(index){
 	self.output[index].write('\x01');
 	self.writeAttributes(index, self.output[index].attributeHash);
 
-	process.nextTick(function(){
-		self.flushBuffer(index, false, header);
-	}); //TODO: Maybe nextTick isn't needed
+	self.flushBuffer(index, header);
 };
 
 /**
@@ -466,25 +474,3 @@ MessageWriter.prototype.confMsgNode = function configureMessageNode(messageNode,
 /**
  * =========================================== MessageWriter Prototype End =============================================
  */
-
-
-var teste = new MessageWriter();
-teste.on('written', function(buffer, index){
-	console.log('\n' + index);
-	console.log(buffer);
-});
-
-teste.writeNewMsg('start:stream', {domain: 's.whatsapp.net', resource: 'Android-2.11.378-443'});
-teste.writeNewMsg('stream:features');
-
-var range = require('./php.js').range;
-var async = require('async');
-async.each(range(1, 1000),
-		function(count){
-			teste.writeNewMsg('text', {name: 'vitor', to:'21991567340', id: count, text: 'teste'});
-		},
-		function(err){
-		});
-teste.writeNewMsg('stream:features');
-
-console.log('Asynchronous test');
