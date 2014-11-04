@@ -4,6 +4,7 @@
 
 'use strict';
 
+var MessageNode = require('./MessageNode');
 var EventEmitter = require('events').EventEmitter;      //EventEmitter Constructor
 require('util').inherits(MessageWriter, EventEmitter);  //Bind EventEmitter Prototype with MessageWriter Prototype
 module.exports = MessageWriter;                         //Exports MessageWriter so it can be use by others classes
@@ -12,7 +13,7 @@ function MessageWriter(){
 	EventEmitter.call(this); //Call EventEmitter Constructor
 
 	this.output = [];        //Array of MessageNode
-	this.cleaning = false;   //Cleaning Control
+	this.cleaning = 0;       //Cleaning Control
 
 	Object.defineProperties(this, {
 		'key': {
@@ -42,32 +43,46 @@ MessageWriter.prototype.resetKey = function resetKey(){
 MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(type, info){
 	var self = this;
 	info = info || {};
-	var MessageNode = require('./MessageNode');
 	var messageNode;
 	var index = null;
 
 	switch(type){
 		case 'text':
 			if(info.hasOwnProperty('text')){
-				messageNode = new MessageNode('body', null, null, info.text);
-				//TODO: Implement text message composer
+				//The text need to be parsed for emojis before being pushed to Writer
+				info.type = 'text';
+
+				messageNode = self.confMsgNode(new MessageNode('body', null, null, info.text), info);
+
+				index = self.pushMsgNode(messageNode);
+
+				process.nextTick(function(){
+					self.emit('composing', index);
+					self.write(index, true);
+				});
+				break;
 			}else{
-				return new Error('Missing property in object info' + info, 'MISSING_PROP');
+				return new Error('Missing property in object info: ' + info, 'MISSING_PROP');
 			}
 			break;
 		case 'image':
+			info.type = 'media';
 			//TODO: Implement image message composer
 			break;
 		case 'audio':
+			info.type = 'media';
 			//TODO: Implement audio message composer
 			break;
 		case 'video':
+			info.type = 'media';
 			//TODO: Implement video message composer
 			break;
 		case 'location':
+			info.type = 'media';
 			//TODO: Implement location message composer
 			break;
 		case 'state':
+			//info.type = 'media';
 			//TODO: Implement state message composer
 			break;
 
@@ -87,7 +102,7 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 					self.startStream(index);
 				});
 			}else{
-				self.emit('error', new Error('Missing property in object info' + info, 'MISSING_PROP'));
+				self.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
 			}
 			break;
 
@@ -104,18 +119,19 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 
 		case 'auth':
 			if(info.hasOwnProperty('authHash') && info.hasOwnProperty('authBlob')){
+				//Todo: WARNING info.authBlob Needs to be encrypted before write the MessageNode
 				messageNode = new MessageNode('auth', info.authHash, null, info.authBlob);
 
 				index = self.pushMsgNode(messageNode);
 
 				process.nextTick(function(){
 					self.emit('composing', index);
-					//Todo: WARNING info.authBlob Needs to be encrypted before write the MessageNode
 					self.write(index, false);
 				});
 			}else{
-				self.emit('error', new Error('Missing property in object info' + info, 'MISSING_PROP'));
+				self.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
 			}
+			break;
 	}
 
 	return index;
@@ -128,25 +144,15 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
  * @returns {Number} MessageNode Index
  */
 MessageWriter.prototype.pushMsgNode = function pushMessageNodeToInternalBuffer(messageNode){
-	var self = this;
-
-	var index = self.output.indexOf(null);
+	var index = this.output.indexOf(null);
 
 	if(index !== -1){
-		self.output[index] = messageNode;
+		this.output[index] = messageNode;
 	}else{
-		index = self.output.push(messageNode) - 1; //Don't know why but Array.prototype.push return the index + 1
+		index = this.output.push(messageNode) - 1; //Don't know why but Array.prototype.push return the index + 1
 	}
 
-	self.emit('pushed', index);
-
-	if(!self.cleaning) { //Control the number of times SlimOutput will execute in one tick, so it do not run twice in a row
-		self.cleaning = true;
-
-		process.nextTick(function () {
-			self.slimOutput(); //Add SlimOutput to be execute in the next tick, to clean Output Array if needed;
-		});
-	}
+	this.emit('pushed', index);
 
 	return index;
 };
@@ -180,9 +186,18 @@ MessageWriter.prototype.write = function write(index, encrypt){
  * @param {int} index
  */
 MessageWriter.prototype.clearPos = function clearOutputIndexPosition(index){
-	this.output[index].clearIntBuff();
-	delete this.output[index];
-	this.output[index] = null;
+	var self = this;
+
+	self.output[index].clearIntBuff();
+	delete self.output[index];
+	self.output[index] = null;
+
+	self.cleaning++; //Control the number of times SlimOutput will execute in one tick, so it do not run twice in a row
+	if(self.cleaning > 2) {
+		process.nextTick(function () {
+			self.slimOutput(); //Add SlimOutput to be execute in the next tick, to clean Output Array if needed;
+		});
+	}
 };
 
 /**
@@ -194,7 +209,7 @@ MessageWriter.prototype.slimOutput = function decreaseOutputArrayAsItBecomeEmpty
 		delete this.output[length];
 		this.output = this.output.slice(0, length);
 	}
-	this.cleaning = false; //TODO: maybe this can be put to the next tick so it do not run two ticks in a row
+	this.cleaning = 0;
 };
 
 /**
@@ -421,15 +436,55 @@ MessageWriter.prototype.startStream = function startStream(index){
 };
 
 /**
+ * Configure the Message Node with it's right childes and default values
+ *
+ * @param {MessageNode} messageNode
+ * @param {Object} info
+ * @returns {MessageNode}
+ */
+MessageWriter.prototype.confMsgNode = function configureMessageNode(messageNode, info) {
+	if(info.hasOwnProperty('name') && info.hasOwnProperty('to') && info.hasOwnProperty('type') && info.hasOwnProperty('id')) {
+		info.id = 'message' + '-' + Math.floor(new Date().getTime() / 1000) + '-' + info.id;
+
+		var xNode = new MessageNode('x', {xmlns: 'jabber:x:event'}, [new MessageNode('server', null, null, null)], null);
+		var notifyNode = new MessageNode('notify', {xmlns: 'urn:xmpp:whatsapp', name: info.name}, null, null);
+		var requestNode = new MessageNode('request', {xmlns: 'urn:xmpp:receipts'}, null, null);
+
+		return new MessageNode('message', {
+				to: info.to,
+				type: info.type,
+				id: info.id,
+				t: Math.floor(new Date().getTime() / 1000).toString()
+			},
+			[xNode, notifyNode, requestNode, messageNode], null);
+	}else{
+
+		return null;
+	}
+};
+
+/**
  * =========================================== MessageWriter Prototype End =============================================
  */
 
 
 var teste = new MessageWriter();
-teste.writeNewMsg('start:stream', {domain: 's.whatsapp.net', resource: 'Android-2.11.378-443'});
-teste.writeNewMsg('stream:features');
 teste.on('written', function(buffer, index){
 	console.log('\n' + index);
 	console.log(buffer);
 });
+
+teste.writeNewMsg('start:stream', {domain: 's.whatsapp.net', resource: 'Android-2.11.378-443'});
+teste.writeNewMsg('stream:features');
+
+var range = require('./php.js').range;
+var async = require('async');
+async.each(range(1, 1000),
+		function(count){
+			teste.writeNewMsg('text', {name: 'vitor', to:'21991567340', id: count, text: 'teste'});
+		},
+		function(err){
+		});
+teste.writeNewMsg('stream:features');
+
 console.log('Asynchronous test');
