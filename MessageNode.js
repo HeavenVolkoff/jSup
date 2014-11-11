@@ -10,10 +10,10 @@
  * @param {Object} attributeHash
  * @param {Array} children
  * @param {string} data
- * @param {Boolean} [encrypt = true]
+ * @param {int} outputKey
  * @constructor [MessageNode]
  */
-function MessageNode(tag, attributeHash, children, data, encrypt){
+function MessageNode(tag, attributeHash, children, data, outputKey){
 	var message = [];
 	var length = 0;
 
@@ -63,9 +63,8 @@ function MessageNode(tag, attributeHash, children, data, encrypt){
 			value: tag,
 			enumerable: true
 		},
-		'encrypt': {
-			value: encrypt || true,
-			enumerable: true
+		outputKeyIndex:{
+			value: outputKey || null
 		}
 	});
 }

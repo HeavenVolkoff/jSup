@@ -79,8 +79,10 @@ function ParseMessageInboundForEmojis(txt, span){
 	emojis.forEach(function(emoji){
 		txt = txt.replace(new RegExp(escapeRegExp(emoji.iOS2 + '|' + emoji.iOS5 + '|' + emoji.iOS7), 'g'),
 							(span === true) ?
-								'<span class="emoji emoji-' + emoji.Hex + '">&#35;&#35;' + emoji.Hex + '&#35;&#35;</span>' :
-								'##' + emoji.Hex + '##');
+								'<span class="emoji emoji-' + emoji.Hex + '">&#35;&#35;' + emoji.Hex + '&#35;&#35;</span>' 
+									: 
+								'##' + emoji.Hex + '##'
+						);
 	});
 
 	return txt;

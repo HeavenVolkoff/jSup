@@ -6,7 +6,6 @@
 
 /**
  *
- *
  * @param {string} key
  * @param {string} macKey
  * @constructor
@@ -67,43 +66,44 @@ KeyStream.prototype = {
 
 	/**
 	 * Calculate HMAC from given buffer;
-	 *
-	 * @param {string} buffer
+	 * @param {Buffer} buffer
 	 * @param {int} offset
 	 * @param {int} length
-	 * @returns {string}
+	 * @returns {SlowBuffer}
 	 */
 	'computeMac': function computeMac(buffer, offset, length){
         var crypto = require('crypto');
         var hmac = crypto.createHmac('sha1', this.macKey);
-        hmac.update(buffer.substr(offset, length));
-        var string = String.fromCharCode(this.seq >> 24) +
-                     String.fromCharCode(this.seq >> 16) +
-                     String.fromCharCode(this.seq >> 8)  +
-                     String.fromCharCode(this.seq);
-        hmac.update(string);
+        var seqBuff = new Buffer(   String.fromCharCode(this.seq >> 24) +
+                                    String.fromCharCode(this.seq >> 16) +
+                                    String.fromCharCode(this.seq >> 8)  +
+                                    String.fromCharCode(this.seq)
+                                );
+
+		hmac.update(buffer.slice(offset, offset + length));
+        hmac.update(seqBuff);
         this.seq++;
-        return hmac.digest('binary');
+        return hmac.digest();
 	},
 
 	/**
 	 * Decode given buffer message
 	 *
-	 * @param {string} buffer
+	 * @param {Buffer} buffer
 	 * @param {int} macOffset
 	 * @param {int} offset
 	 * @param {int} length
-	 * @returns {string}
+	 * @returns {Buffer}
 	 */
 	'decodeMessage': function decodeMessage(buffer, macOffset, offset, length){
 		var mac = this.computeMac(buffer, offset, length);
 		//Validate Mac
 		for(var count = 0; count < 4; count++){
-			var bufferVerifier = buffer.charCodeAt(macOffset + 1);
-			var macVerifier = mac.charCodeAt(count);
+			var bufferVerifier = buffer[macOffset + 1];
+			var macVerifier = mac[count];
 
 			if(bufferVerifier !== macVerifier){
-				throw Error('Mac mismatch: bufferVerifier: ' + bufferVerifier + ' != macVerifier' + macVerifier);
+				return Error('Mac mismatch: bufferVerifier: ' + bufferVerifier + ' != macVerifier' + macVerifier);
 			}
 		}
 		return this.rc4.cipher(buffer, offset, length);
@@ -112,17 +112,17 @@ KeyStream.prototype = {
 	/**
 	 * Encode given buffer message
 	 *
-	 * @param {string} buffer
+	 * @param {Buffer} buffer
 	 * @param {int} macOffset
 	 * @param {int} offset
 	 * @param {int} length
-	 * @returns {string}
+	 * @returns {Buffer}
 	 */
 	'encodeMessage': function encodeMessage(buffer, macOffset, offset, length){
 		var data = this.rc4.cipher(buffer, offset, length);
 		var mac = this.computeMac(data, offset, length);
 
-		return data.substr(0, macOffset) + mac.substr(0, 4) + data.substr(macOffset + 4);
+		return Buffer.concat([data.slice(0, macOffset), mac.slice(0, 4), data.slice(macOffset + 4)]);
 	}
 };
 

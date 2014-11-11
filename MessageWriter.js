@@ -12,13 +12,14 @@ module.exports = MessageWriter;                         //Exports MessageWriter 
 function MessageWriter(){
 	EventEmitter.call(this); //Call EventEmitter Constructor
 
-	this.output = [];        //Array of MessageNode
-	this.control = [];       //Array of Index
+	this.on('pushed', this.write);
+	this.on('written', this.clearPos);
+
+	this.output = [];        //Array of MessageNodes
+	this.control = [];       //Array of Indexes
+	this.key = [];           //Array of Keys
 
 	Object.defineProperties(this, {
-		key: {
-			writable: true
-		},
 		writing: {
 			value: false,
 			writable: true
@@ -32,10 +33,12 @@ function MessageWriter(){
 
 /**
  * Reset this.key
- * TODO: this will be gone as KeyStream will be specific for each Sup Obj
  */
-MessageWriter.prototype.resetKey = function resetKey(){
-	this.key = null;
+MessageWriter.prototype.resetKey = function resetKey(index){
+	if(this.key[index]) {
+		delete this.key[index];
+		this.key[index] = null;
+	}
 };
 
 /**
@@ -45,10 +48,8 @@ MessageWriter.prototype.resetKey = function resetKey(){
  * @param {Object} [info  = {}]
  */
 MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(type, info){
-	var self = this;
 	info = info || {};
 	var messageNode;
-	var index = null;
 
 	switch(type){
 		case 'text':
@@ -56,11 +57,9 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 				//The text need to be parsed for emojis before being pushed to Writer
 				info.type = 'text';
 
-				messageNode = self.confMsgNode(new MessageNode('body', null, null, info.text), info);
+				messageNode = this.confMsgNode(new MessageNode('body', null, null, info.text, info.key), info);
+				this.pushMsgNode(messageNode);
 
-				index = self.pushMsgNode(messageNode);
-
-				break;
 			}else{
 				return new Error('Missing property in object info: ' + info, 'MISSING_PROP');
 			}
@@ -93,42 +92,35 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 
 		case 'start:stream':
 			if(info.hasOwnProperty('domain') && info.hasOwnProperty('resource')){
-				messageNode = new MessageNode(null, {to: info.domain, resource: info.resource}, null, null, false);
+				this.once('pushed', this.startStream);
 
-				index = self.pushMsgNode(messageNode, false);
+				messageNode = new MessageNode(null, {to: info.domain, resource: info.resource}, null, null);
+				this.pushMsgNode(messageNode, false);
 
-				self.startStream(index);
 			}else{
-				self.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
+				this.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
 			}
+
 			break;
 
 		case 'stream:features':
-			messageNode = new MessageNode('stream:features', null, null, null, false);
-
-			index = self.pushMsgNode(messageNode);
+			messageNode = new MessageNode('stream:features', null, null, null);
+			this.pushMsgNode(messageNode);
 
 			break;
 
 		case 'auth':
 			if(info.hasOwnProperty('authHash') && info.hasOwnProperty('authBlob')){
 				//Todo: WARNING info.authBlob Needs to be encrypted before write the MessageNode
-				messageNode = new MessageNode('auth', info.authHash, null, info.authBlob, false);
-
-				index = self.pushMsgNode(messageNode);
+				messageNode = new MessageNode('auth', info.authHash, null, info.authBlob);
+				this.pushMsgNode(messageNode);
 
 			}else{
-				self.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
+				this.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
 			}
+
 			break;
 	}
-
-
-	if(index) {
-		this.write(this.control.length);
-	}
-
-	return index;
 };
 
 /**
@@ -141,34 +133,34 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 MessageWriter.prototype.pushMsgNode = function pushMessageNodeToInternalBuffer(messageNode, control){
 	control = typeof control === 'boolean'? control : true;
 
-	var index = this.output.indexOf(null);
+	if(messageNode) {
+		var index = this.output.indexOf(null);
 
-	if(index !== -1){
-		this.output[index] = messageNode;
-	}else{
-		index = this.output.push(messageNode) - 1; //Don't know why but Array.prototype.push return the index + 1
+		if (index !== -1) {
+			this.output[index] = messageNode;
+		} else {
+			index = this.output.push(messageNode) - 1; //Don't know why but Array.prototype.push return the index + 1
+		}
+
+		if (control) {
+			this.control.push(index);
+		}
+		this.emit('pushed', index);
 	}
-
-	if(control){
-		this.control.push(index);
-	}
-	this.emit('pushed', index);
-
-	return index;
 };
 
 /**
  * Write MessageNode
  *
- * @param {int} length
  * @param {boolean} [childProcess = false]
  * @returns {Buffer}
  */
-MessageWriter.prototype.write = function write(length, childProcess){
-	childProcess = childProcess || false;
+MessageWriter.prototype.write = function write(childProcess){
+	childProcess = typeof childProcess === 'boolean'? childProcess : false;
 
 	var self = this;
 	var async = require('async');
+	var length = self.control.length;
 
 	if(!self.writing || childProcess) {
 		if(length > 0) {
@@ -184,7 +176,7 @@ MessageWriter.prototype.write = function write(length, childProcess){
 				function () {
 					self.control = self.control.slice(length);
 					process.nextTick(function () {
-						self.write(self.control.length, true);
+						self.write(true);
 					});
 				}
 			);
@@ -205,20 +197,17 @@ MessageWriter.prototype.write = function write(length, childProcess){
  * @param {int} index
  */
 MessageWriter.prototype.clearPos = function clearOutputIndexPosition(index){
-	var self = this;
-
-	self.output[index].clearIntBuff();
-	delete self.output[index];
-	self.output[index] = null;
+	if(this.output[index]){
+		delete this.output[index];
+		this.output[index] = null;
+	}
 };
 
 /**
  * Decrease the Output Array as it Become Empty
  */
 MessageWriter.prototype.slimOutput = function decreaseOutputArrayAsItBecomeEmpty(){
-	var length = 0;
-
-	for(length = this.output.length - 1; this.output[length] === null; length--) {
+	for(var length = this.output.length - 1; this.output[length] === null; length--) {
 		delete this.output[length];
 	}
 	this.output = this.output.slice(0, length);
@@ -411,9 +400,7 @@ MessageWriter.prototype.flushBuffer = function flushBuffer(index, header){
 	}
 	this.output[index].writeHeader(size).writeHeader(header);
 
-	this.emit('written', this.output[index].getMessage(), index);
-
-	this.clearPos(index); //Clear output position after emitting written event
+	this.emit('written', index, this.output[index].getMessage());
 };
 
 /**
@@ -465,8 +452,9 @@ MessageWriter.prototype.confMsgNode = function configureMessageNode(messageNode,
 				t: Math.floor(new Date().getTime() / 1000).toString()
 			},
 			[xNode, notifyNode, requestNode, messageNode], null);
-	}else{
 
+	}else{
+		this.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
 		return null;
 	}
 };
