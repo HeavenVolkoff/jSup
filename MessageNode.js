@@ -10,10 +10,10 @@
  * @param {Object} attributeHash
  * @param {Array} children
  * @param {string} data
- * @param {int} outputKey
+ * @param {int} writerKeyIndex
  * @constructor [MessageNode]
  */
-function MessageNode(tag, attributeHash, children, data, outputKey){
+function MessageNode(tag, attributeHash, children, data, writerKeyIndex){
 	var message = [];
 	var length = 0;
 
@@ -63,8 +63,8 @@ function MessageNode(tag, attributeHash, children, data, outputKey){
 			value: tag,
 			enumerable: true
 		},
-		outputKeyIndex:{
-			value: outputKey || null
+		writerKeyIndex:{
+			value: writerKeyIndex || null
 		}
 	});
 }
@@ -292,7 +292,6 @@ module.exports = MessageNode;
 		},
 
 		/**
-		 * @deprecated //TODO: see if it will be used if not delete it
 		 * @param {string} attribute
 		 * @return string
 		 */

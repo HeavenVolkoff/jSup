@@ -4,6 +4,8 @@
 
 'use strict';
 
+var RC4 = require('./RC4');
+
 /**
  *
  * @param {string} key
@@ -11,8 +13,6 @@
  * @constructor
  */
 function KeyStream(key, macKey){
-	var RC4 = require('./RC4');
-
     /*global RC4*/
 	Object.defineProperties(this, {
 		'rc4': {
@@ -31,39 +31,6 @@ function KeyStream(key, macKey){
 module.exports = KeyStream;
 
 KeyStream.prototype = {
-	/**
-	 * Generate the crypto keys from password with salt nonce
-	 *
-	 * @param {string} password
-	 * @param {string} nonce
-	 * @param {function} callback
-	 * @returns {string[]}
-	 */
-	 'generateKeys': function generateKeys(password, nonce, callback){
-		var crypto = require('crypto');
-		var async = require('async');
-        var array = [];
-		var error = [];
-		var count = 0;
-
-		async.whilst(
-			function checkCounter(){
-				return count < 4;
-			},
-			crypto.pbkdf2(password, nonce + String.fromCharCode(count + 1), 2, 20,
-				function fillArray(err, key){
-					if(!err){
-						array.push(key.toString('binary'));
-					}else{
-						error.push(err);
-					}
-					count++;
-				}
-			),
-			callback(array, error)
-		);
-	 },
-
 	/**
 	 * Calculate HMAC from given buffer;
 	 * @param {Buffer} buffer
@@ -99,11 +66,11 @@ KeyStream.prototype = {
 		var mac = this.computeMac(buffer, offset, length);
 		//Validate Mac
 		for(var count = 0; count < 4; count++){
-			var bufferVerifier = buffer[macOffset + 1];
+			var bufferVerifier = buffer[macOffset + count];
 			var macVerifier = mac[count];
 
 			if(bufferVerifier !== macVerifier){
-				return Error('Mac mismatch: bufferVerifier: ' + bufferVerifier + ' != macVerifier' + macVerifier);
+				return Error('Mac mismatch: bufferVerifier: ' + bufferVerifier + ' != macVerifier: ' + macVerifier);
 			}
 		}
 		return this.rc4.cipher(buffer, offset, length);

@@ -4,6 +4,7 @@
 
 'use strict';
 
+var Async = require('async');
 var MessageNode = require('./MessageNode');
 var EventEmitter = require('events').EventEmitter;      //EventEmitter Constructor
 require('util').inherits(MessageWriter, EventEmitter);  //Bind EventEmitter Prototype with MessageWriter Prototype
@@ -12,8 +13,8 @@ module.exports = MessageWriter;                         //Exports MessageWriter 
 function MessageWriter(){
 	EventEmitter.call(this); //Call EventEmitter Constructor
 
-	this.on('pushed', this.write);
-	this.on('written', this.clearPos);
+	this.on('pushed', this.write);		//call write function every time a new message is pushed to internal array
+	this.on('written', this.clearPos);	//call clearPost every time it finish witting a message
 
 	this.output = [];        //Array of MessageNodes
 	this.control = [];       //Array of Indexes
@@ -35,7 +36,7 @@ function MessageWriter(){
  * Reset this.key
  */
 MessageWriter.prototype.resetKey = function resetKey(index){
-	if(this.key[index]) {
+	if(index && this.key[index]) {
 		delete this.key[index];
 		this.key[index] = null;
 	}
@@ -120,6 +121,15 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 			}
 
 			break;
+		case 'response':
+			if(info.hasOwnProperty('response')) {
+				messageNode = new MessageNode('response', {xmlns: 'urn:ietf:params:xml:ns:xmpp-sasl'}, null, info.response);
+				this.pushMsgNode(messageNode);
+			}else{
+				this.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
+			}
+
+			break;
 	}
 };
 
@@ -159,13 +169,18 @@ MessageWriter.prototype.write = function write(childProcess){
 	childProcess = typeof childProcess === 'boolean'? childProcess : false;
 
 	var self = this;
-	var async = require('async');
 	var length = self.control.length;
 
-	if(!self.writing || childProcess) {
+	if(!self.writing){
+		self.writing = true;
+		process.nextTick(function () {
+			self.write(true);
+		});
+	}
+
+	if(childProcess) {
 		if(length > 0) {
-			self.writing = true;
-			async.each(
+			Async.each(
 				this.control.slice(0, length),
 				function (index, callback) {
 					self.emit('composing', index);
@@ -180,7 +195,7 @@ MessageWriter.prototype.write = function write(childProcess){
 					});
 				}
 			);
-		}else{
+		}else if(self.writing){
 			self.writing = false;
 			self.slimOutput();
 		}
@@ -386,9 +401,10 @@ MessageWriter.prototype.flushBuffer = function flushBuffer(index, header){
 
 	var size = this.output[index].length;
 	var data = this.output[index].getMessage();
+	var key = this.key[this.output[index].writerKeyIndex];
 
-	if(this.key && this.output[index].encrypt){
-		this.output[index].overwrite(this.key.encodeMessage(data, size, 0, size));//TODO: I think the encryption is working (but who knows)
+	if(key){
+		this.output[index].overwrite(key.encodeMessage(data, size, 0, size));//TODO: I think the encryption is working (but who knows)
 		size = this.output.length;
 
 		var blockSize = new Buffer(3);

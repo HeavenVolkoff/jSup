@@ -60,17 +60,14 @@ RC4.prototype = {
 	 * @returns {Buffer | Array}
 	 */
 	'cipher': function cipher(buffer, offset, length){
-		var out = buffer;
-
 		for(var n = length; n > 0; n--){
 			this.i = (this.i + 1) & 0xFF;
 			this.j = (this.j + this.s[this.i]) & 0xFF;
 			this.swap(this.i, this.j);
-			var d = buffer[offset];
-			out[offset] = (d ^ this.s[(this.s[this.i] + this.s[this.j])]) & 0xFF;
+			buffer[offset] = (buffer[offset] ^ this.s[((this.s[this.i] + this.s[this.j])) % this.s.length]) & 0xFF;
 			offset++;
 		}
 
-		return out;
+		return buffer;
 	}
 };

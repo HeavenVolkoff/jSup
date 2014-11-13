@@ -4,6 +4,7 @@
 
 'use strict';
 
+var KeyStream = require('./KeyStream');
 var MessageNode = require('./MessageNode');
 var TokenMap = require('./TokenMap');
 var basicFunc = require('./BasicFunctions');
@@ -35,9 +36,7 @@ function MessageReader(){
 			    return messages;
 		    },
 		    set: function(data){
-			    if(Buffer.isBuffer(data) && data.length){
-				    messages.push(data);
-			    }
+			    messages.push(data);
 		    }
 	    },
         'key': {
@@ -67,8 +66,7 @@ MessageReader.prototype._transform = function transform(chunk, encoding, done){
 
 				if (header.length === 3) {
 					length = (basicFunc.shiftLeft(header[1], 8) | header[2]) + header.length; //calculate message size and sum the header length
-
-					if (chunk.length === length) {	//Verifies if message length is equal the declared size
+					if (chunk[length - 1] !== undefined) {	//Verifies if message length is equal the declared size
 						var messageNode = [basicFunc.shiftRight(chunk[0] & 0xF0, 4), length - header.length, chunk.slice(3, length)]; //add [flag, size, message] to internal buffer
 						var index = self.messages.indexOf(null);	//get Null position in array if it exists
 
@@ -76,7 +74,7 @@ MessageReader.prototype._transform = function transform(chunk, encoding, done){
 							self.messages[index] = messageNode;
 						} else {
 							self.messages = messageNode;
-							index = self.message.length - 1;
+							index = self.messages.length - 1;
 						}
 
 						chunk = chunk.slice(length); //reduce chunk the size of the message;
@@ -133,7 +131,7 @@ MessageReader.prototype.readInt8 = function readInt8FromInternalBuffer(index, of
 	offset = isNaN(Number(offset))? 0 : offset;
 	var int = this.messages[index][2].readUInt8(offset);
 
-	this.messages[index][2] = this.messages[index][2].slice(offset);
+	this.messages[index][2] = this.messages[index][2].slice(offset + 1);
 
 	return int;
 };
@@ -149,7 +147,7 @@ MessageReader.prototype.readInt16 = function readInt16FromInternalBuffer(index, 
 	offset = isNaN(Number(offset))? 0 : offset;
 	var int = this.messages[index][2].readUInt16BE(offset);
 
-	this.messages[index][2] = this.messages[index][2].slice(offset + 1);
+	this.messages[index][2] = this.messages[index][2].slice(offset + 2);
 
 	return int;
 };
@@ -166,7 +164,7 @@ MessageReader.prototype.readInt24 = function readInt24FromInternalBuffer(index, 
 	var int = this.messages[index][2].readUInt16BE(offset);
 		int = basicFunc.shiftLeft(int, 16) | this.messages[index][2][offset + 2];
 
-	this.messages[index][2] = this.messages[index][2].slice(offset + 2);
+	this.messages[index][2] = this.messages[index][2].slice(offset + 3);
 
 	return int;
 };
@@ -223,7 +221,7 @@ MessageReader.prototype.fillArray = function fillArray(index, length){
 
 	if(this.messages[index][2].length >= length){
 		buff = this.messages[index][2].slice(0, length);
-		this.messages[index][2] = this.messages[index][2](length);
+		this.messages[index][2] = this.messages[index][2].slice(length);
 	}
 
 	return buff;
@@ -290,6 +288,7 @@ MessageReader.prototype.readAttributes =  function readAttributes(index, size){
 	var attributes = {};
 	var attributesCount = ((size - 2) + (size % 2)) / 2;
 
+	//TODO: Make this a async whilst
 	for(var count = 0; count < attributesCount; count++){
 		var key = this.readString(index, this.readInt8(index));
 		attributes[key] = this.readString(index, this.readInt8(index));
@@ -340,6 +339,7 @@ MessageReader.prototype.readList =  function readList(index, tokenIndex){
 	var size = this.readListSize(index, tokenIndex);
 	var array = [];
 
+	//TODO: Make this a async whilst
 	for(var count = 0; count < size; count++){
 		array.push(this.readInternal(index));
 	}
@@ -353,10 +353,8 @@ MessageReader.prototype.readList =  function readList(index, tokenIndex){
  * @param index
  */
 MessageReader.prototype.readMessage = function readMessageNode(index){
-	var keyStream = require('./KeyStream');
-
 	if(this.messages[index][0]){ //check if message is encrypted
-		if(this.key instanceof keyStream){
+		if(this.key instanceof KeyStream){
 			var realSize = this.messages[index][1] - 4;
 			this.messages[index][2] = this.key.decodeMessage(this.messages[index][2], realSize, 0, realSize); //decrypt message
 
@@ -397,6 +395,11 @@ MessageReader.prototype.readInternal = function readInternalAttributesFromMessag
 		messageNode = new MessageNode('start', attributesHash, null, null);
 	}else if(token === 2){
 		if(!child){
+			this.once('error', function(error){
+				if(error){
+					console.log(error);
+				}
+			});
 			this.emit('error', new Error('Null Message', 'MSG_NULL'));
 			this.clearPos(index);
 		}
