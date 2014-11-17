@@ -130,6 +130,13 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 			}
 
 			break;
+		case 'presence':
+			if(info.hasOwnProperty('name')) {
+				messageNode = new MessageNode('presence', {name: info.name}, null, null);
+				this.pushMsgNode(messageNode);
+			}else{
+				this.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
+			}
 	}
 };
 
@@ -379,7 +386,7 @@ MessageWriter.prototype.writeInfo = function writeInternalInfo(index, child){
 	if(children){
 		this.writeLength(index, Object.keys(children).length);
 
-		for(var key in children){ //TODO: make a use of Async to write the children info in parallel
+		for(var key in children){ //TODO: make a use of async to write the children info in parallel
 			if(children.hasOwnProperty(key)){
 				child = children[key];
 				this.writeInfo(index, child);
@@ -401,7 +408,7 @@ MessageWriter.prototype.flushBuffer = function flushBuffer(index, header){
 
 	var size = this.output[index].length;
 	var data = this.output[index].getMessage();
-	var key = this.key[this.output[index].writerKeyIndex];
+	var key = this.key[this.output[index]._writerKeyIndex];
 
 	if(key){
 		this.output[index].overwrite(key.encodeMessage(data, size, 0, size));//TODO: I think the encryption is working (but who knows)

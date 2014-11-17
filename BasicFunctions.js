@@ -18,9 +18,10 @@ module.exports.isNode = function isNode(){
  * @param {string} string
  * @returns {XML|string|void}
  */
-function escapeRegExp(string) {
+var escapeRegExp =  function escapeRegExp(string) {
 	return string.replace(/([.*+?\^=!:${}()|\[\]\/\\])/g, '\\$1');
-}
+};
+module.exports.escapeRegExp = escapeRegExp;
 
 /**
  * Convert Hex to Binary
@@ -46,7 +47,7 @@ module.exports.shiftRight = function shiftRight(int, shift){
 module.exports.shiftLeft = function shiftLeft(int, shift){
 	var result = Math.floor(Number(int)) * Math.pow(2, shift);
 	return isNaN(result)? 0 : result;
-}
+};
 
 /**
  * Return the Emoji object array
@@ -72,18 +73,20 @@ function emojiObjectArray(){
  *
  * @return {string}
  */
-function ParseMessageInboundForEmojis(txt, span){
+module.exports.parseMsgEmojis = function ParseMessageInboundForEmojis(txt, span){
 	span = span || true;
 	var emojis = emojiObjectArray();
 
-	emojis.forEach(function(emoji){
-		txt = txt.replace(new RegExp(escapeRegExp(emoji.iOS2 + '|' + emoji.iOS5 + '|' + emoji.iOS7), 'g'),
-							(span === true) ?
-								'<span class="emoji emoji-' + emoji.Hex + '">&#35;&#35;' + emoji.Hex + '&#35;&#35;</span>' 
-									: 
-								'##' + emoji.Hex + '##'
-						);
-	});
+	emojis.forEach(function(emoji)
+		{
+			txt = txt.replace(new RegExp(escapeRegExp(emoji.iOS2 + '|' + emoji.iOS5 + '|' + emoji.iOS7), 'g'),
+								(span === true) ?
+									'<span class="emoji emoji-' + emoji.Hex + '">&#35;&#35;' + emoji.Hex + '&#35;&#35;</span>'
+										:
+									'##' + emoji.Hex + '##'
+			);
+		}
+	);
 
 	return txt;
 }

@@ -4,311 +4,305 @@
 
 'use strict';
 
-var Fs = require('fs');
-var Socket = require('net').Socket;
-var Async = require('async');
-var Crypto = require('crypto');
+var async = require('async');
+var basicFunc = require('./BasicFunctions');
+var Constants = require('./Constants');
+var crypto = require('crypto');
+var fs = require('fs');
+var generateKeys = require('./KeyStream').generateKeys;
 var KeyStream = require('./KeyStream');
 var MessageReader = require('./MessageReader');
 var MessageWriter = require('./MessageWriter');
+var Socket = require('net').Socket;
+
 
 require('util').inherits(Sup, Socket);
-
 function Sup(number, identity, nickname, messageWriter) {
     if (!(this instanceof Sup)){
         return new Sup(number, identity, nickname, messageWriter);
     }
+    if (!(number || identity || nickname)){
+        throw Error('Missing Basic Info');
+    }
 
-    var self = this;                                    //Reference to the Object (Only to be used for properties cross-reference)
-    var whatsApp = {port: 443, host: 'c.whatsapp.net'}; //Object with basic info to connect to WhatsApp Server
+    Constants.call(this);                                           //Call Constants superConstructor to setup constants
+    Socket.call(this, {port: this.PORT, host: this.WHATSAPP_HOST}); //Call Socket superConstructor with the necessary connection info
+    this.connect({port: this.PORT, host: this.WHATSAPP_HOST});      //Call connect function and connect to WhatsApp Servers
 
-    Socket.call(this, whatsApp);    //Call Socket superConstructor with the necessary connection info
-    this.connect(whatsApp);       //Call connect function and connect to whatsApp Servers
+    //########################## Private Variables ###################################
+    var self = this;    //Reference to the Object (Only to be used for properties cross-reference)
+    var count = 0;      //Sent Message Counter (also used to form sent messages id)
+    var sendMsg = [];   //Message Index Array to verify with MessageWriter
+    var writingMsg = [];//Message Index Array to verify with MessageWriter from this User are being written
 
-    this.writeMsg = [];                                 //Message Index Array to verify with MessageWriter
-    this.reader = new MessageReader();                  //Message Reader Internal Object
-    this.writer = messageWriter || new MessageWriter(); //Message Writer Internal Object
-    this.pipe(this.reader);                             //Pipe Sup (Stream) to Message Reader
+    //########################## Public Variables ####################################
+    this._reader = new MessageReader();                  //Message Reader Internal Object
+    this._writer = messageWriter || new MessageWriter(); //Message Writer Internal Object
+    this.pipe(this._reader);                             //Pipe Sup (Stream) to Message Reader
 
+    //########################## Public Functions ####################################
     this.clearSentMsg = function clearInternalMessagesArray(length){
-      if(length >= this.writeMsg.length){
-          this.writeMsg = [];
+      if(length >= writingMsg.length){
+          writingMsg = [];
       }else{
-          this.writeMsg = this.writeMsg.slice(length);
+          writingMsg = writingMsg.slice(length);
       }
     };
 
+    //######################### Some Default Set-Up's ################################
+    this.setupListeners();
+    this.setTimeout(self.TIMEOUT_SEC);
+
+    //############################# Properties #######################################
     Object.defineProperties(this, {
+        //################ WhatsApp User Info properties #############################
+        name: {
+            value: nickname,
+            writable: true,
+            enumerable: true
+        },
+        phoneNumber: {
+            value: number,
+            enumerable: true
+        },
         password: {
             writable: true
         },
-        challengeData: {
-            writable: true
+        identity: {
+            //Identity validation, if not valid compute new identity hash
+            value: identity && decodeURIComponent(identity).length === 20? identity : this.buildIdentity(identity),
+            enumerable: true
         },
-        writerKeyIndex: {
-            writable: true
+        loginStatus: {
+            value: 'disconnected',
+            writable: true,
+            enumerable: true
         },
-        writerKey: {
+        groupList: {
+            value: [],
+            writable: true,
+            enumerable: true
+        },
+        msgCount: {
             get: function(){
-                if(!isNaN(self.writerKeyIndex)){
-                    return self.writer.key[self.writerKeyIndex];
+                return count;
+            }
+        },
+        mediaFileInfo: {
+            value: [],
+            writable: true,
+            enumerable: true
+        },
+        mediaQueue: {
+            value: [],
+            writable: true,
+            enumerable: true
+        },
+
+        //#################### Internal Properties ####################################
+        _challengeData: {
+            writable: true
+        },
+        _writingMsg: {
+            get: function(){
+                return writingMsg;
+            },
+            set: function(index){
+                if (!isNaN(index = Number(index))){
+                    writingMsg.push(index);
+                }
+            }
+        },
+        _writerKeyIndex: {
+            writable: true
+        },
+        _writerKey: {
+            get: function(){
+                if(!isNaN(self._writerKeyIndex)){
+                    return self._writer.key[self._writerKeyIndex];
                 }
                 return null;
             },
             set: function(key){
                 if(key instanceof KeyStream){
-                    if(self.writerKeyIndex){
-                        self.writer.key[self.writerKeyIndex] = key;
+                    if(!isNaN(self._writerKeyIndex)){
+                        self._writer.key[self._writerKeyIndex] = key;
                     }else{
-                        self.writerKeyIndex = self.writer.key.push(key) - 1;
+                        self._writerKeyIndex = self._writer.key.push(key) - 1;
                     }
                 }
             }
         },
-        'accountInfo': {
-            writable: true,
-            enumerable: true
-        },
-        'challengeDataFileName': {
-            value: 'nextChallenge.dat',
-            writable: true,
-            enumerable: true
-        },
-        'event': {
-            writable: true,
-            enumerable: true
-        },
-        'groupList': {
-            value: [],
-            writable: true,
-            enumerable: true
-        },
-        'identity': {
-            /**
-             * Identity validation, if not valid compute new identity
-             */
-            value: identity && decodeURIComponent(identity).length === 20? identity : this.buildIdentity(identity),
-            enumerable: true
-        },
-        'inputKey': {
-            writable: true,
-            enumerable: true
-        },
-        'outputKey': {
-            writable: true,
-            enumerable: true
-        },
-        'groupId': {
-            value: false,
-            writable: true,
-            enumerable: true
-        },
-        'lastId': {
-            value: false,
-            writable: true,
-            enumerable: true
-        },
-        'loginStatus': {
-            value: 'disconnected',
-            writable: true,
-            enumerable: true
-        },
-        'mediaFileInfo': {
-            value: [],
-            writable: true,
-            enumerable: true
-        },
-        'mediaQueue': {
-            value: [],
-            writable: true,
-            enumerable: true
-        },
-        'messageCounter': {
-            value: 1,
-            writable: true,
-            enumerable: true
-        },
-        'messageQueue': {
-            value: [],
-            writable: true,
-            enumerable: true
-        },
-        'name': {
-            value: nickname,
-            writable: true,
-            enumerable: true
-        },
-        'newMsgBind': {
-            value: false,
-            writable: true,
-            enumerable: true
-        },
-        'outQueue': {
-            value: [],
-            writable: true,
-            enumerable: true
-        },
-        'phoneNumber': {
-            value: number,
-            enumerable: true
-        },
-        'serverReceivedId': {
-            writable: true,
-            enumerable: true
-        }
-    });
+        _msgId:{
+            get: function(){
+                return count++;
+            },
+            set: function(id){
+                if(typeof id === 'string'){
+                    id = Number(id.replace(new RegExp('message-[0-9]{10}-', 'g'), ''));
+                }
 
-    /**
-     * Constant declarations.
-     */
-    Object.defineProperties(this, {
-        'CONNECTED_STATUS': {
-            value: 'connected'
-        },
-        'COUNTRIES':{
-            value: 'countries.csv'
-        },
-        'DISCONNECTED_STATUS': {
-            value: 'disconnected'
-        },
-        'MEDIA_FOLDER': {
-            value: 'media'
-        },
-        'PICTURES_FOLDER': {
-            value: 'pictures'
-        },
-        'PORT': {
-            value: 443
-        },
-        'TIMEOUT_SEC': {
-            value: 2
-        },
-        'TIMEOUT_USEC': {
-            value: 0
-        },
-        'WHATSAPP_CHECK_HOST': {
-            value: 'v.whatsapp.net/v2/exist'
-        },
-        'WHATSAPP_GROUP_SERVER': {
-            value: 'g.us'
-        },
-        'WHATSAPP_HOST': {
-            value: 'c.whatsapp.net'
-        },
-        'WHATSAPP_REGISTER_HOST': {
-            value: 'v.whatsapp.net/v2/register'
-        },
-        'WHATSAPP_REQUEST_HOST': {
-            value: 'v.whatsapp.net/v2/code'
-        },
-        'WHATSAPP_SERVER': {
-            value: 's.whatsapp.net'
-        },
-        'WHATSAPP_UPLOAD_HOST': {
-            value: 'https://mms.whatsapp.net/client/iphone/upload.php'
-        },
-        'WHATSAPP_DEVICE': {
-            value: 'Android'
-        },
-        'WHATSAPP_VER': {
-            value: '2.11.378'
-        },
-        'WHATSAPP_USER_AGENT': {
-            value: 'WhatsApp/2.11.378 Android/4.3 Device/GalaxyS3'
+                if(typeof id === 'number'){
+                    var index = sendMsg.indexOf(id);
+
+                    if(index !== -1){
+                        delete sendMsg[index];
+                        sendMsg[index] = null;
+
+                        self.emit('msgReceived', id);
+                    }
+                }
+            }
         }
     });
 }
+
+Sup.prototype._onChallenge = function processChallengeData(challenge){
+    var self = this;
+    self._challengeData = challenge;
+
+    generateKeys(self.password, self._challengeData,
+        function (error, keys) {
+            if (!error) {
+                self._reader.key = new KeyStream(keys[2], keys[3]);
+                self._writerKey = new KeyStream(keys[0], keys[1]);
+
+                var buffer = Buffer.concat([new Buffer('\0\0\0\0' + self.phoneNumber), self._challengeData]);
+                var array = self._writerKey.encodeMessage(buffer, 0, 4, buffer.length - 4);
+                self._writer.writeNewMsg('response', {response: array});
+
+            }else{
+                self.emit('error', error);
+            }
+        }
+    );
+};
+
+Sup.prototype._onConnected = function onConnectedSuccessEvent(challenge){
+    var self = this;
+    self.loginStatus = self.CONNECTED_STATUS;
+
+    fs.open(self.CHALLENGE_DATA_FILE_NAME, 'w', function (error, file) {
+        if (!error) {
+            fs.write(file, challenge, 0, challenge.length, 0);
+        } else {
+            self.emit('error', error);
+        }
+    });
+
+    self._writer.writeNewMsg('presence', {name: self.name});
+};
+
+Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
+    console.log('\n');
+    console.log(messageNode);
+    if(messageNode.attributeHash.hasOwnProperty('id')){
+        this._msgId = messageNode.id;
+    }
+
+    switch(messageNode.tag){
+        case 'challenge':
+            this.emit('_challenge', messageNode.data);
+
+            break;
+        case 'success':
+            this.emit('connected', messageNode.data);
+
+            break;
+        default:
+            break;
+    }
+};
+
+Sup.prototype._onPushed = function onPushedEvent(index){
+    this._writingMsg = index;
+};
+
+Sup.prototype._onSend = function onSendEvent(bufferArray){
+    var self = this;
+
+    async.eachSeries(
+        bufferArray,
+        function(buff, callback){
+            try{
+                self.write(buff);   //Write Message to Socket
+                self.emit('sent');  //Emit Event Sent Message
+                callback();
+            }catch(error){
+                callback(error);
+            }
+        },
+        function(error){
+            if(error){
+                self.emit('error', error);
+            }
+        }
+    );
+};
+
+Sup.prototype._onWritten = function onWrittenEvent(index, buff){
+    var self = this;
+
+    index = self._writingMsg.indexOf(index);
+    if(index !== - 1) {
+        self._writingMsg[index] = buff;
+
+        if (index === 0) {
+            process.nextTick(function () {
+                var bufferArray = [];
+
+                async.whilst(
+                    function () {
+                        return Buffer.isBuffer(self._writingMsg[index]);
+                    },
+                    function (callback) {
+                        bufferArray.push(self._writingMsg[index]);
+                        index++;
+                        callback();
+                    },
+                    function () {
+                        self.clearSentMsg(index);
+                        self.emit('_send', bufferArray);
+                    }
+                );
+            });
+        }
+
+    }else{
+        self.emit('error', new Error('Incorrect Message Index', 'MSG_INDEX'));
+    }
+};
 
 Sup.prototype.setupListeners = function setupInternalListeners(){
     var self = this;
 
     self.on('end', function onEnd(){
-        console.log('connection ended by the partner');//TODO: Bind connection end listener here; Emitted when the other end of the socket sends a FIN packet.
+        console.log('connection ended by the partner');
     });
     self.on('error', function onError(error){
-        console.log('connection error');//TODO: Bind ERROR listener here.
+        console.log('connection error');
         throw error;
     });
     self.on('timeout', function onTimeOut(){
-        console.log('connection on idle');//TODO: Bind Timeout listener here, WARNING: connection on timeout only enter in idle, it do not close.
+        console.log('connection on idle');
     });
     self.on('drain', function onWriteBufferEmpty(){
-        console.log('write buffer empty');//TODO: i don't know if it useful; Emitted when the write buffer becomes empty. Can be used to throttle uploads.
+        console.log('write buffer empty');
     });
     self.on('close', function onClose(hadError){
         if(hadError){
-            console.log('connection closed');//TODO: Bind connection closed listener here.
+            console.log('connection closed');
         }else{
-            console.log('connection closed due to a transmission error.');//TODO: Bind connection closed error listener here.
+            console.log('connection closed due to a transmission error.');
         }
     });
 
-    self.setTimeout(self.TIMEOUT_SEC, function onTimeOut(){
-        /**
-         * This is added to the TimeOut Listener
-         */
-        console.log('timeout');
-    });
-
-    self.on('send', function(bufferArray){  //Send Event Listener that send messages to whatsApp server
-        Async.eachSeries(
-            bufferArray,
-            function(buff, callback){
-                try{
-                    console.log(buff);
-                    self.write(buff);   //Write Message to Socket
-                    self.emit('sent');  //Emit Event Sent Message
-                    callback();
-                }catch(error){
-                    callback(error);
-                }
-            },
-            function(error){
-                if(error){
-                    self.emit('error', error);
-                }
-            }
-        );
-    });
-
-    self.writer.on('pushed', function(index){
-        self.writeMsg.push(index);
-    });     //writer Pushed Event Listener that add the pushed message index into internal array
-
-    self.writer.on('written', function(index, buff){  //writer Written Event Listener that add the written message to outgoing queue
-        index = self.writeMsg.indexOf(index);
-        if(index !== - 1) {
-            self.writeMsg[index] = buff;
-
-            if (index === 0) {
-                process.nextTick(function () {
-                    var bufferArray = [];
-
-                    Async.whilst(
-                        function () {
-                            return Buffer.isBuffer(self.writeMsg[index]);
-                        },
-                        function (callback) {
-                            bufferArray.push(self.writeMsg[index]);
-                            index++;
-                            callback();
-                        },
-                        function () {
-                            self.clearSentMsg(index);
-                            self.emit('send', bufferArray);
-                        }
-                    );
-                });
-            }
-
-        }else{
-            self.emit('error', new Error('Incorrect Message Index', 'MSG_INDEX'));
-        }
-    });
-
-    self.reader.on('decoded', function(index, node){
-        self.processNode(index, node);
-    });
+    self.on(        '_send',        function (bufferArray)  {       self._onSend(bufferArray);});             //Send Event Listener that send messages to whatsApp server
+    self.on(        '_challenge',   function (challenge)    {       self._onChallenge(challenge);});          //Challenge Event Listener that process the received challenge data
+    self.on(        'connected',    function (challenge)    {       self._onConnected(challenge);});          //Connected (a.k.a Success) Event Listener that process future connection challengeData
+    self._writer.on('pushed',       function (index)        {       self._onPushed(index);});                 //Writer Pushed Event Listener that add the pushed message index into internal array
+    self._writer.on('written',      function (index, buffer){       self._onWritten(index, buffer);});        //Writer Written Event Listener that add the written message to outgoing queue
+    self._reader.on('decoded',      function (index, messageNode){  self.onDecode(index, messageNode);});     //Reader decoded Event Listener that process every message received
 };
 
 Sup.prototype.disconnect = function endSocketConnection(){
@@ -317,7 +311,7 @@ Sup.prototype.disconnect = function endSocketConnection(){
 };
 
 Sup.prototype.buildIdentity =  function computeIdentitySha1(identity){
-    var sha1 = Crypto.createHash('sha1');
+    var sha1 = crypto.createHash('sha1');
 
     sha1.update(identity);
 
@@ -327,7 +321,7 @@ Sup.prototype.buildIdentity =  function computeIdentitySha1(identity){
 Sup.prototype.openCSV = function OpenCSVFile(path, callback){
     var csv = require('fast-csv');
 
-    Fs.exists(path, function(exists) {
+    fs.exists(path, function(exists) {
         if (exists) {
             csv.fromPath(path)
                 .on('data', function(data){callback(null, data);});//TODO: this function is a listener that don't stop even after the callback has returned true, check if there is a way to kill it.
@@ -364,73 +358,35 @@ Sup.prototype.dissectPhone = function dissectCountryCodeFromPhoneNumber(path, ph
     });
 };
 
-/**
- * Generate the crypto keys from password with salt nonce
- *
- * @param {Buffer} password
- * @param {Buffer} challenge
- * @param {function} callback
- * @returns {Buffer[]}
- */
-Sup.prototype.generateKeys = function generateKeys(password, challenge, callback){
-    var array = [];
-
-    Async.each(
-        [1, 2, 3, 4],
-        function(count, callback) {
-            var countBuff = new Buffer(1);
-                countBuff.writeUInt8(count, 0);
-            var nonce = Buffer.concat([challenge, countBuff]);
-            Crypto.pbkdf2(password, nonce, 2, 20,
-                function (error, key) {
-                    if (!error) {
-                        array[count - 1] = key;
-                        callback(null);
-                    } else {
-                        callback(error, null);
-                    }
-                }
-            );
-        },
-        function(error){
-            if(!error){
-                callback(null, array);
-            }else{
-                callback(error);
-            }
-        }
-    );
-};
-
 Sup.prototype.createAuthBlob = function createAuthBlob(callback){
     var strPad = require('./php.js').strPad;
     var self = this;
 
-    if(self.challengeData) {
-        Async.parallel([
+    if(self._challengeData) {
+        async.parallel([
             function (callback) {
-                Async.waterfall(
+                async.waterfall(
                     [
                         function (callback) {
-                            Crypto.pbkdf2(self.password, self.challengeData, 16, 20, callback);
+                            crypto.pbkdf2(self.password, self._challengeData, 16, 20, callback);
                         },
                         function setKeys(key, callback) {
-                            self.reader.key = new KeyStream(key[2], key[3]);
-                            self.writerKey = new KeyStream(key[0], key[1]);
+                            self._reader.key = new KeyStream(key[2], key[3]);
+                            self._writerKey = new KeyStream(key[0], key[1]);
                             callback(null);
                         }
                     ], callback
                 );
             },
             function (callback) {
-                Async.waterfall(
+                async.waterfall(
                     [
                         function (callback) {
                             self.dissectPhone(self.COUNTRIES, self.phoneNumber, callback);
                         },
                         function encodeAuthMessage(phoneInfo, callback) {
                             var time = parseInt(new Date().getTime() / 100);
-                            var buff = new Buffer('\0\0\0\0' + self.phoneNumber + self.challengeData + time + self.WHATSAPP_USER_AGENT + ' MccMnc/' + strPad(phoneInfo.mcc, 3, '0', 'STR_PAD_LEFT') + '001');
+                            var buff = new Buffer('\0\0\0\0' + self.phoneNumber + self._challengeData + time + self.WHATSAPP_USER_AGENT + ' MccMnc/' + strPad(phoneInfo.mcc, 3, '0', 'STR_PAD_LEFT') + '001');
                             callback(null, buff);
                         }
                     ], callback
@@ -438,8 +394,8 @@ Sup.prototype.createAuthBlob = function createAuthBlob(callback){
             }
         ], function authBlobReturn(error, value) {
                 if(!error){
-                    self.challengeData = null;
-                    callback(error, self.writerKey.encodeMessage(value[1], 0, value[1].length, 0));
+                    self._challengeData = null;
+                    callback(error, self._writerKey.encodeMessage(value[1], 0, value[1].length, 0));
                 }else {
                     self.emit('error', error);
                 }
@@ -447,6 +403,19 @@ Sup.prototype.createAuthBlob = function createAuthBlob(callback){
     }else{
         callback(null, null);
     }
+};
+
+Sup.prototype.doLogin = function doLogin(){
+    var self = this;
+
+    self._writer.resetKey(this._writerKeyIndex);
+    self._reader.resetKey();
+
+    self.createAuthBlob(function(error, authBlob){
+        self._writer.writeNewMsg('start:stream', {domain: self.WHATSAPP_SERVER, resource: self.WHATSAPP_DEVICE + '-' + self.WHATSAPP_VER + '-' + self.PORT});
+        self._writer.writeNewMsg('stream:features');
+        self._writer.writeNewMsg('auth', {authHash: {xmlns: 'urn:ietf:params:xml:ns:xmpp-sasl', mechanism: 'WAUTH-2',user: self.phoneNumber}, authBlob: authBlob});
+    });
 };
 
 Sup.prototype.login = function loginToWhatsAppServer(password){
@@ -458,7 +427,7 @@ Sup.prototype.login = function loginToWhatsAppServer(password){
         }else{
             this.emit('error', new TypeError('Password need to be a Base64 encoded String or a Buffer'));
         }
-        //Todo: read challengeData File
+        //Todo: read _challengeData File
     }else{
         //Todo: receive new Password from whatsApp Servers
     }
@@ -466,77 +435,11 @@ Sup.prototype.login = function loginToWhatsAppServer(password){
     this.doLogin();
 };
 
-Sup.prototype.doLogin = function doLogin(){
-    var self = this;
+Sup.prototype.sendMessage = function sendTextMessage(to, text, id){
+    id = id || null;
 
-    self.setupListeners();
-
-    self.writer.resetKey(this.writerKeyIndex);
-    self.reader.resetKey();
-
-    self.createAuthBlob(function(error, authBlob){
-        self.writer.writeNewMsg('start:stream', {domain: self.WHATSAPP_SERVER, resource: self.WHATSAPP_DEVICE + '-' + self.WHATSAPP_VER + '-' + self.PORT});
-        self.writer.writeNewMsg('stream:features');
-        self.writer.writeNewMsg('auth', {authHash: {xmlns: 'urn:ietf:params:xml:ns:xmpp-sasl', mechanism: 'WAUTH-2',user: self.phoneNumber}, authBlob: authBlob});
-    });
-};
-
-Sup.prototype.processChallengeData = function processChallengeData(node){
-    var self = this;
-    self.challengeData = node.data;
-
-    Async.parallel(
-        [
-            function(callback) {
-                Fs.open(self.challengeDataFileName, 'w', function (error, file) {
-                    if (!error) {
-                        Fs.write(file, node.data, 0, node.data.length, 0, callback);
-                    } else {
-                        callback(error);
-                    }
-                });
-            },
-            function(callback) {
-                self.generateKeys(self.password, self.challengeData,
-                    function (error, keys) {
-                        if (!error) {
-                            self.reader.key = new KeyStream(keys[2], keys[3]);
-                            self.writerKey = new KeyStream(keys[0], keys[1]);
-
-                            var buffer = Buffer.concat([new Buffer('\0\0\0\0' + self.phoneNumber), self.challengeData]);
-                            var array = self.writerKey.encodeMessage(buffer, 0, 4, buffer.length - 4);
-                            self.writer.writeNewMsg('response', {response: array});
-                            callback(null);
-
-                        }else{
-                            callback(error);
-                        }
-                    }
-                );
-            }
-        ],
-        function(error){
-            if(error){
-                self.emit(error);
-            }
-        }
-    );
-};
-
-Sup.prototype.processNode = function processNodeInfo(index, messageNode){
-    console.log(messageNode);
-    if(messageNode.attributeHash.hasOwnProperty('id')){
-        //TODO: check if id received is the same as the sent messages to acknowledge that WhatsApp server has received it
-    }
-
-    switch(messageNode.tag){
-        case 'challenge':
-            this.processChallengeData(messageNode);
-            break;
-
-        default:
-            break;
-    }
+    text = basicFunc.parseMsgEmojis(text);
+    this._writer.writeNewMsg('text', {text: text, key: this._writerKeyIndex, name: this.name, to: to, id: this._msgId});
 };
 
 var teste = new Sup('5521989316579','012345678901234','Xing Ling Lee');

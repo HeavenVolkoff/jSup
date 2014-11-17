@@ -12,6 +12,7 @@ var RC4 = require('./RC4');
  * @param {string} macKey
  * @constructor
  */
+module.exports = KeyStream;
 function KeyStream(key, macKey){
     /*global RC4*/
 	Object.defineProperties(this, {
@@ -27,8 +28,6 @@ function KeyStream(key, macKey){
         }
 	});
 }
-
-module.exports = KeyStream;
 
 KeyStream.prototype = {
 	/**
@@ -91,5 +90,45 @@ KeyStream.prototype = {
 
 		return Buffer.concat([data.slice(0, macOffset), mac.slice(0, 4), data.slice(macOffset + 4)]);
 	}
+};
+
+/**
+ * Generate the crypto keys from password with salt nonce
+ *
+ * @param {Buffer} password
+ * @param {Buffer} challenge
+ * @param {function} callback
+ * @returns {Buffer[]}
+ */
+module.exports.generateKeys = function generateKeys(password, challenge, callback){
+	var async = require('async');
+	var crypto = require('crypto');
+	var array = [];
+
+	async.each(
+		[1, 2, 3, 4],
+		function(count, callback) {
+			var countBuff = new Buffer(1);
+			countBuff.writeUInt8(count, 0);
+			var nonce = Buffer.concat([challenge, countBuff]);
+			crypto.pbkdf2(password, nonce, 2, 20,
+				function (error, key) {
+					if (!error) {
+						array[count - 1] = key;
+						callback(null);
+					} else {
+						callback(error, null);
+					}
+				}
+			);
+		},
+		function(error){
+			if(!error){
+				callback(null, array);
+			}else{
+				callback(error);
+			}
+		}
+	);
 };
 

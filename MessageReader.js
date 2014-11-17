@@ -183,30 +183,22 @@ MessageReader.prototype.getToken =  function getToken(index, tokenIndex){
 	var tokenMap = new TokenMap();
 	var tokenArray = tokenMap.getToken(tokenIndex, subDict);
 
-	if(tokenArray){
-		subDict = tokenArray[0];
+	subDict = tokenArray[0];
+	token = tokenArray[1];
+
+	if(!token){
+		tokenIndex = this.readInt8(index);
+		tokenArray = tokenMap.getToken(tokenIndex, subDict);
+
 		token = tokenArray[1];
 
-		if(token === ''){
-			tokenIndex = this.readInt8(index);
-			tokenArray = tokenMap.getToken(tokenIndex, subDict);
-
-			if(tokenArray){
-				token = tokenArray[1];
-
-				if(token === ''){
-					this.emit('error', new Error('Invalid token index' + tokenIndex, 'TOKEN_INDEX'));
-				}
-			}else{
-				this.emit('error', new Error('Invalid token index' + tokenIndex, 'TOKEN_INDEX'));
-			}
+		if(!token){
+			this.emit('error', new Error('Invalid token index' + tokenIndex, 'TOKEN_INDEX'));
+			return null;
 		}
-
-		return token;
 	}
 
-	this.emit('error', new Error('Invalid token index' + tokenIndex, 'TOKEN_INDEX'));
-	return null;
+	return token;
 };
 
 /**

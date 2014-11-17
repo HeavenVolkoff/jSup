@@ -435,16 +435,16 @@ module.exports = TokenMap;
 				subDict = false;
 			}
 
-			if(tokenIndex >= 0 && tokenIndex < tokenMap.length){
-				token = tokenMap[tokenIndex];
+			if(tokenIndex >= 0 && tokenIndex <= tokenMap.length){
+				token = tokenMap[tokenIndex % tokenMap.length];
 
 				if(token === ''){
-					console.log('Invalid token/length');
+					console.log('Invalid token/length'); //This is not a Error just a Warning
 				}
 				return [subDict, token];
 			}
 
-			return null;
+			return [subDict, null];
 		},
 
 		/**
