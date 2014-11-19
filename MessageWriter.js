@@ -4,13 +4,16 @@
 
 'use strict';
 
-var Async = require('async');
+var async = require('async');
+var Constants = require('./Constants');
 var MessageNode = require('./MessageNode');
 var EventEmitter = require('events').EventEmitter;      //EventEmitter Constructor
-require('util').inherits(MessageWriter, EventEmitter);  //Bind EventEmitter Prototype with MessageWriter Prototype
+var util = require('util');
+util.inherits(MessageWriter, EventEmitter);  //Bind EventEmitter Prototype with MessageWriter Prototype
 module.exports = MessageWriter;                         //Exports MessageWriter so it can be use by others classes
 
 function MessageWriter(){
+	Constants.call(this);
 	EventEmitter.call(this); //Call EventEmitter Constructor
 
 	this.on('pushed', this.write);		//call write function every time a new message is pushed to internal array
@@ -54,11 +57,11 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 
 	switch(type){
 		case 'text':
-			if(info.hasOwnProperty('text')){
+			if(info.hasOwnProperty('text') && info.hasOwnProperty('key')){
 				//The text need to be parsed for emojis before being pushed to Writer
 				info.type = 'text';
 
-				messageNode = this.confMsgNode(new MessageNode('body', null, null, info.text, info.key), info);
+				messageNode = this.confMsgNode(new MessageNode('body', null, null, info.text), info);
 				this.pushMsgNode(messageNode);
 
 			}else{
@@ -131,8 +134,8 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 
 			break;
 		case 'presence':
-			if(info.hasOwnProperty('name')) {
-				messageNode = new MessageNode('presence', {name: info.name}, null, null);
+			if(info.hasOwnProperty('name') && info.hasOwnProperty('key')) {
+				messageNode = new MessageNode('presence', {name: info.name}, null, null, info.key);
 				this.pushMsgNode(messageNode);
 			}else{
 				this.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
@@ -187,7 +190,7 @@ MessageWriter.prototype.write = function write(childProcess){
 
 	if(childProcess) {
 		if(length > 0) {
-			Async.each(
+			async.each(
 				this.control.slice(0, length),
 				function (index, callback) {
 					self.emit('composing', index);
@@ -411,8 +414,8 @@ MessageWriter.prototype.flushBuffer = function flushBuffer(index, header){
 	var key = this.key[this.output[index]._writerKeyIndex];
 
 	if(key){
-		this.output[index].overwrite(key.encodeMessage(data, size, 0, size));//TODO: I think the encryption is working (but who knows)
-		size = this.output.length;
+		this.output[index].overwrite(key.encodeMessage(data, size, 0, size));
+		size = this.output[index].length;
 
 		var blockSize = new Buffer(3);
 		blockSize[0] = basicFunc.shiftLeft(8, 4) | basicFunc.shiftRight((size & 0xFF0000), 16);
@@ -422,7 +425,9 @@ MessageWriter.prototype.flushBuffer = function flushBuffer(index, header){
 		size = blockSize;
 	}
 	this.output[index].writeHeader(size).writeHeader(header);
-
+	//console.log(this.output[index].nodeString('tx  '));
+	console.log('Node');
+	console.log(util.inspect(this.output[index], { showHidden: false, depth: null, colors: true }));
 	this.emit('written', index, this.output[index].getMessage());
 };
 
@@ -453,6 +458,26 @@ MessageWriter.prototype.startStream = function startStream(index){
 	self.flushBuffer(index, header);
 };
 
+MessageWriter.prototype.genJID = function generateJabberId(number){
+	number = number? number.toString() : null;
+
+	if (number && !isNaN(Number(number))){
+		if(number.indexOf('@') === -1){
+			var index = number.indexOf('-');
+
+			if(index !== -1){
+				return number += '@' + this.WHATSAPP_GROUP_SERVER;
+			}else{
+				return number += '@' + this.WHATSAPP_SERVER;
+			}
+		}
+
+	}else {
+		this.emit(new TypeError('Number is not a phone formatted string'));
+		return number;
+	}
+};
+
 /**
  * Configure the Message Node with it's right childes and default values
  *
@@ -469,12 +494,12 @@ MessageWriter.prototype.confMsgNode = function configureMessageNode(messageNode,
 		var requestNode = new MessageNode('request', {xmlns: 'urn:xmpp:receipts'}, null, null);
 
 		return new MessageNode('message', {
-				to: info.to,
+				to: this.genJID(info.to),
 				type: info.type,
 				id: info.id,
 				t: Math.floor(new Date().getTime() / 1000).toString()
 			},
-			[xNode, notifyNode, requestNode, messageNode], null);
+			[xNode, notifyNode, requestNode, messageNode], null, info.key);
 
 	}else{
 		this.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));

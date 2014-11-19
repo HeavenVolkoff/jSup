@@ -16,15 +16,16 @@ module.exports = KeyStream;
 function KeyStream(key, macKey){
     /*global RC4*/
 	Object.defineProperties(this, {
-		'rc4': {
-			'value': new RC4(key, 768)
+		rc4: {
+			value: new RC4(key, 768)
 		},
-		'macKey': {
+		macKey: {
 			value: new Buffer(macKey)
 		},
-		'seq': {
-			'value': 0,
-			'writable': true
+		seq: {
+			value: 0,
+			writable: true,
+			enumerable: true
         }
 	});
 }

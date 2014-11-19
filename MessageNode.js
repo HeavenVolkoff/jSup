@@ -47,24 +47,24 @@ function MessageNode(tag, attributeHash, children, data, writerKeyIndex){
 				return length;
 			}
 		},
-		'data': {
-			value: data,
-			enumerable: true
-		},
-		'children': {
-			value: children,
+		'tag': {
+			value: tag,
 			enumerable: true
 		},
 		'attributeHash': {
 			value: attributeHash,
 			enumerable: true
 		},
-		'tag': {
-			value: tag,
+		'children': {
+			value: children,
 			enumerable: true
 		},
-		writerKeyIndex:{
-			value: writerKeyIndex || null
+		'data': {
+			value: data,
+			enumerable: true
+		},
+		_writerKeyIndex:{
+			value: writerKeyIndex
 		}
 	});
 }
@@ -258,7 +258,7 @@ module.exports = MessageNode;
 				}
 			}
 			string += greater;
-			if(this.data.length > 0){
+			if(this.data && this.data.length > 0){
 				if(this.data.length < 1024){
 					//if message is a text add text
 					string += this.data;

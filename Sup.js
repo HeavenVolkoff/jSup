@@ -180,7 +180,6 @@ Sup.prototype._onChallenge = function processChallengeData(challenge){
 
 Sup.prototype._onConnected = function onConnectedSuccessEvent(challenge){
     var self = this;
-    self.loginStatus = self.CONNECTED_STATUS;
 
     fs.open(self.CHALLENGE_DATA_FILE_NAME, 'w', function (error, file) {
         if (!error) {
@@ -189,13 +188,12 @@ Sup.prototype._onConnected = function onConnectedSuccessEvent(challenge){
             self.emit('error', error);
         }
     });
-
-    self._writer.writeNewMsg('presence', {name: self.name});
+    self._writer.writeNewMsg('presence', {name: self.name, key: self._writerKeyIndex});
+    self.loginStatus = self.CONNECTED_STATUS;
 };
 
 Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
-    console.log('\n');
-    console.log(messageNode);
+    //console.log(messageNode.nodeString('rx  '));
     if(messageNode.attributeHash.hasOwnProperty('id')){
         this._msgId = messageNode.id;
     }
@@ -225,8 +223,10 @@ Sup.prototype._onSend = function onSendEvent(bufferArray){
         bufferArray,
         function(buff, callback){
             try{
+                console.log('Send:');
+                console.log(buff.toString('hex'));
                 self.write(buff);   //Write Message to Socket
-                self.emit('sent');  //Emit Event Sent Message
+                self.emit('sent');  //Emit Event Sent Message//TODO: return message id or index something to know what message was sent
                 callback();
             }catch(error){
                 callback(error);
@@ -277,32 +277,32 @@ Sup.prototype.setupListeners = function setupInternalListeners(){
     var self = this;
 
     self.on('end', function onEnd(){
-        console.log('connection ended by the partner');
+        //console.log('connection ended by the partner');
     });
     self.on('error', function onError(error){
-        console.log('connection error');
+        //console.log('connection error');
         throw error;
     });
     self.on('timeout', function onTimeOut(){
-        console.log('connection on idle');
+        //console.log('connection on idle');
     });
     self.on('drain', function onWriteBufferEmpty(){
-        console.log('write buffer empty');
+        //console.log('write buffer empty');
     });
     self.on('close', function onClose(hadError){
         if(hadError){
-            console.log('connection closed');
+            //console.log('connection closed');
         }else{
-            console.log('connection closed due to a transmission error.');
+            //console.log('connection closed due to a transmission error.');
         }
     });
 
-    self.on(        '_send',        function (bufferArray)  {       self._onSend(bufferArray);});             //Send Event Listener that send messages to whatsApp server
-    self.on(        '_challenge',   function (challenge)    {       self._onChallenge(challenge);});          //Challenge Event Listener that process the received challenge data
-    self.on(        'connected',    function (challenge)    {       self._onConnected(challenge);});          //Connected (a.k.a Success) Event Listener that process future connection challengeData
-    self._writer.on('pushed',       function (index)        {       self._onPushed(index);});                 //Writer Pushed Event Listener that add the pushed message index into internal array
-    self._writer.on('written',      function (index, buffer){       self._onWritten(index, buffer);});        //Writer Written Event Listener that add the written message to outgoing queue
-    self._reader.on('decoded',      function (index, messageNode){  self.onDecode(index, messageNode);});     //Reader decoded Event Listener that process every message received
+    self.on(        '_send',        function (bufferArray)       {  self._onSend(bufferArray);          });     //Send Event Listener that send messages to whatsApp server
+    self.on(        '_challenge',   function (challenge)         {  self._onChallenge(challenge);       });     //Challenge Event Listener that process the received challenge data
+    self.on(        'connected',    function (challenge)         {  self._onConnected(challenge);       });     //Connected (a.k.a Success) Event Listener that process future connection challengeData
+    self._writer.on('pushed',       function (index)             {  self._onPushed(index);              });     //Writer Pushed Event Listener that add the pushed message index into internal array
+    self._writer.on('written',      function (index, buffer)     {  self._onWritten(index, buffer);     });     //Writer Written Event Listener that add the written message to outgoing queue
+    self._reader.on('decoded',      function (index, messageNode){  self.onDecode(index, messageNode);  });     //Reader decoded Event Listener that process every message received
 };
 
 Sup.prototype.disconnect = function endSocketConnection(){
@@ -435,12 +435,27 @@ Sup.prototype.login = function loginToWhatsAppServer(password){
     this.doLogin();
 };
 
-Sup.prototype.sendMessage = function sendTextMessage(to, text, id){
-    id = id || null;
+Sup.prototype.sendMessage = function sendTextMessage(to, text){
+    var self = this;
 
-    text = basicFunc.parseMsgEmojis(text);
-    this._writer.writeNewMsg('text', {text: text, key: this._writerKeyIndex, name: this.name, to: to, id: this._msgId});
+    if(self.loginStatus === self.CONNECTED_STATUS) {
+        text = basicFunc.parseMsgEmojis(text);
+        self._writer.writeNewMsg('text', {
+            text: text,
+            key: self._writerKeyIndex,
+            name: self.name,
+            to: to,
+            id: self._msgId
+        });
+    }else {
+        setImmediate(function () {
+            self.sendMessage(to, text);
+        });
+    }
 };
 
 var teste = new Sup('5521989316579','012345678901234','Xing Ling Lee');
 teste.login('eW8hwE74KhuApT3n6VZihPt+oPI=');
+teste.sendMessage('5521999667644', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
+teste.sendMessage('5521999840775', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
+teste.sendMessage('5521991567340', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');

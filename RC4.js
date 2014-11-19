@@ -20,7 +20,7 @@ function RC4(key, drop){
 
 	for(var i = 0, j = 0, k = 0; i < 256; i++){
 		k = key[i % key.length];
-		j = (j + k + this.s[i]) & 0xFF;
+		j = (j + k + this.s[i  % this.s.length]) & 0xFF;
 		this.swap(i, j);
 	}
 
@@ -45,10 +45,10 @@ RC4.prototype = {
 	 * @param {int} i
 	 * @param {int} j
 	 */
-	'swap': function swap(i, j){
-		var c = this.s[i];
-		this.s[i] = this.s[j];
-		this.s[j] = c;
+	swap: function swap(i, j){
+		var c = this.s[i % this.s.length];
+		this.s[i % this.s.length] = this.s[j % this.s.length];
+		this.s[j % this.s.length] = c;
 	},
 
 	/**
@@ -59,15 +59,14 @@ RC4.prototype = {
 	 * @param {int} length
 	 * @returns {Buffer | Array}
 	 */
-	'cipher': function cipher(buffer, offset, length){
+	cipher: function cipher(buffer, offset, length){
 		for(var n = length; n > 0; n--){
 			this.i = (this.i + 1) & 0xFF;
-			this.j = (this.j + this.s[this.i]) & 0xFF;
+			this.j = (this.j + this.s[this.i % this.s.length]) & 0xFF;
 			this.swap(this.i, this.j);
-			buffer[offset] = (buffer[offset] ^ this.s[((this.s[this.i] + this.s[this.j])) % this.s.length]) & 0xFF;
+			buffer[offset] = (buffer[offset] ^ this.s[(((this.s[this.i % this.s.length] + this.s[this.j % this.s.length])) % this.s.length) & 0xFF]);
 			offset++;
 		}
-
 		return buffer;
 	}
 };
