@@ -52,7 +52,7 @@ function Sup(number, nickname, messageWriter) {
 
     //######################### Some Default Set-Up's ################################
     this.setupListeners();
-    //this.setTimeout(self.TIMEOUT_SEC);
+    this.setTimeout(self.TIMEOUT_SEC);
 
     //############################# Properties #######################################
     Object.defineProperties(this, {
@@ -468,20 +468,31 @@ Sup.prototype.doLogin = function doLogin(){
 };
 
 Sup.prototype.login = function loginToWhatsAppServer(password){
+    var self = this;
+
     if(password){
         if(Buffer.isBuffer(password)){
-            this.password = password;
+            self.password = password;
         }else if(typeof password === 'string'){
-            this.password = new Buffer(password, 'base64');
+            self.password = new Buffer(password, 'base64');
         }else{
-            this.emit('error', new TypeError('Password need to be a Base64 encoded String or a Buffer'));
+            self.emit('error', new TypeError('Password need to be a Base64 encoded String or a Buffer'));
         }
-        //Todo: read _challengeData File
+
+        fs.readFile(self.CHALLENGE_DATA_FILE_NAME,
+            function(error, data){
+                if(!error && data.length){
+                    self._challengeData = data;
+                    console.log('challenge');
+                    console.log(self._challengeData);
+                }
+
+                self.doLogin();
+            }
+        );
     }else{
         //Todo: receive new Password from whatsApp Servers
     }
-
-    this.doLogin();
 };
 
 Sup.prototype.sendMessage = function sendTextMessage(to, text, callback){
