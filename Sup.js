@@ -33,7 +33,7 @@ function Sup(number, identity, nickname, messageWriter) {
     var self = this;    //Reference to the Object (Only to be used for properties cross-reference)
     var count = 0;      //Sent Message Counter (also used to form sent messages id)
     var sendMsg = [];   //Message Index Array to verify with MessageWriter
-    var writingMsg = [];//Message Index Array to verify with MessageWriter from this User are being written
+    var writingMsg = [];//Message Index Array to verify with MessageWriter what messages, from this User, are being written
 
     //########################## Public Variables ####################################
     this._reader = new MessageReader();                  //Message Reader Internal Object
@@ -169,7 +169,7 @@ Sup.prototype._onChallenge = function processChallengeData(challenge){
 
                 var buffer = Buffer.concat([new Buffer('\0\0\0\0' + self.phoneNumber), self._challengeData]);
                 var array = self._writerKey.encodeMessage(buffer, 0, 4, buffer.length - 4);
-                self._writer.writeNewMsg('response', {response: array});
+                self._writer.writeNewMsg('response', {response: array, msgId: self.phoneNumber+'-'+self._msgId});
 
             }else{
                 self.emit('error', error);
@@ -188,8 +188,9 @@ Sup.prototype._onConnected = function onConnectedSuccessEvent(challenge){
             self.emit('error', error);
         }
     });
-    self._writer.writeNewMsg('presence', {name: self.name, key: self._writerKeyIndex});
-    self.loginStatus = self.CONNECTED_STATUS;
+    self._writer.writeNewMsg('presence', {name: self.name, key: self._writerKeyIndex, msgId: self.phoneNumber+'-'+self._msgId}, function(){
+        self.loginStatus = self.CONNECTED_STATUS;
+    });
 };
 
 Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
@@ -212,22 +213,31 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
     }
 };
 
-Sup.prototype._onPushed = function onPushedEvent(index){
-    this._writingMsg = index;
+Sup.prototype._onPushed = function onPushedEvent(index, id){
+    if(id.slice(0, id.indexOf('-')) === this.phoneNumber){
+        console.log('foi');
+        this._writingMsg = index;
+    }
 };
 
 Sup.prototype._onSend = function onSendEvent(bufferArray){
     var self = this;
+    console.log('send '+ bufferArray.toString());
 
     async.eachSeries(
         bufferArray,
         function(buff, callback){
             try{
                 console.log('Send:');
-                console.log(buff.toString('hex'));
-                self.write(buff);   //Write Message to Socket
-                self.emit('sent');  //Emit Event Sent Message//TODO: return message id or index something to know what message was sent
-                callback();
+                console.log(buff[0].toString('hex'));
+                self.write(buff[0]);   //Write Message to Socket
+                self.emit('sent', buff[1]);  //Emit Event Sent Message
+
+                if(typeof buff[2] === 'function'){
+                    buff[2](callback); //TODO: maybe give message buff and/or id to callback??????
+                }else{
+                    callback();
+                }
             }catch(error){
                 callback(error);
             }
@@ -240,12 +250,12 @@ Sup.prototype._onSend = function onSendEvent(bufferArray){
     );
 };
 
-Sup.prototype._onWritten = function onWrittenEvent(index, buff){
+Sup.prototype._onWritten = function onWrittenEvent(index, id, buff, callback){
     var self = this;
 
     index = self._writingMsg.indexOf(index);
     if(index !== - 1) {
-        self._writingMsg[index] = buff;
+        self._writingMsg[index] = [buff, id, callback];
 
         if (index === 0) {
             process.nextTick(function () {
@@ -253,7 +263,7 @@ Sup.prototype._onWritten = function onWrittenEvent(index, buff){
 
                 async.whilst(
                     function () {
-                        return Buffer.isBuffer(self._writingMsg[index]);
+                        return self._writingMsg[index] instanceof Array && Buffer.isBuffer(self._writingMsg[index][0]);
                     },
                     function (callback) {
                         bufferArray.push(self._writingMsg[index]);
@@ -297,12 +307,12 @@ Sup.prototype.setupListeners = function setupInternalListeners(){
         }
     });
 
-    self.on(        '_send',        function (bufferArray)       {  self._onSend(bufferArray);          });     //Send Event Listener that send messages to whatsApp server
-    self.on(        '_challenge',   function (challenge)         {  self._onChallenge(challenge);       });     //Challenge Event Listener that process the received challenge data
-    self.on(        'connected',    function (challenge)         {  self._onConnected(challenge);       });     //Connected (a.k.a Success) Event Listener that process future connection challengeData
-    self._writer.on('pushed',       function (index)             {  self._onPushed(index);              });     //Writer Pushed Event Listener that add the pushed message index into internal array
-    self._writer.on('written',      function (index, buffer)     {  self._onWritten(index, buffer);     });     //Writer Written Event Listener that add the written message to outgoing queue
-    self._reader.on('decoded',      function (index, messageNode){  self.onDecode(index, messageNode);  });     //Reader decoded Event Listener that process every message received
+    self.on(        '_send',        function (bufferArray)                  {  self._onSend     (bufferArray);                  });     //Send Event Listener that send messages to whatsApp server
+    self.on(        '_challenge',   function (challenge)                    {  self._onChallenge(challenge);                    });     //Challenge Event Listener that process the received challenge data
+    self.on(        'connected',    function (challenge)                    {  self._onConnected(challenge);                    });     //Connected (a.k.a Success) Event Listener that process future connection challengeData
+    self._writer.on('pushed',       function (index, id)                    {  self._onPushed   (index, id);                    });     //Writer Pushed Event Listener that add the pushed message index into internal array
+    self._writer.on('written',      function (index, id, buffer, callback)  {  self._onWritten  (index, id, buffer, callback);  });     //Writer Written Event Listener that add the written message to outgoing queue
+    self._reader.on('decoded',      function (index, messageNode)           {  self.onDecode    (index, messageNode);           });     //Reader decoded Event Listener that process every message received
 };
 
 Sup.prototype.disconnect = function endSocketConnection(){
@@ -412,9 +422,9 @@ Sup.prototype.doLogin = function doLogin(){
     self._reader.resetKey();
 
     self.createAuthBlob(function(error, authBlob){
-        self._writer.writeNewMsg('start:stream', {domain: self.WHATSAPP_SERVER, resource: self.WHATSAPP_DEVICE + '-' + self.WHATSAPP_VER + '-' + self.PORT});
-        self._writer.writeNewMsg('stream:features');
-        self._writer.writeNewMsg('auth', {authHash: {xmlns: 'urn:ietf:params:xml:ns:xmpp-sasl', mechanism: 'WAUTH-2',user: self.phoneNumber}, authBlob: authBlob});
+        self._writer.writeNewMsg('start:stream', {domain: self.WHATSAPP_SERVER, resource: self.WHATSAPP_DEVICE + '-' + self.WHATSAPP_VER + '-' + self.PORT, msgId: self.phoneNumber+'-'+self._msgId});
+        self._writer.writeNewMsg('stream:features', {msgId: self.phoneNumber+'-'+self._msgId});
+        self._writer.writeNewMsg('auth', {authHash: {xmlns: 'urn:ietf:params:xml:ns:xmpp-sasl', mechanism: 'WAUTH-2', user: self.phoneNumber}, authBlob: authBlob, msgId: self.phoneNumber+'-'+self._msgId});
     });
 };
 
@@ -435,27 +445,30 @@ Sup.prototype.login = function loginToWhatsAppServer(password){
     this.doLogin();
 };
 
-Sup.prototype.sendMessage = function sendTextMessage(to, text){
+Sup.prototype.sendMessage = function sendTextMessage(to, text, callback){
     var self = this;
 
     if(self.loginStatus === self.CONNECTED_STATUS) {
-        text = basicFunc.parseMsgEmojis(text);
+        var msgId = self._msgId;
+            text = basicFunc.parseMsgEmojis(text);
+
         self._writer.writeNewMsg('text', {
             text: text,
             key: self._writerKeyIndex,
             name: self.name,
             to: to,
-            id: self._msgId
-        });
+            id: msgId,
+            msgId: self.phoneNumber + '-' + msgId
+        }, callback);
     }else {
         setImmediate(function () {
-            self.sendMessage(to, text);
+            self.sendMessage(to, text, callback);
         });
     }
 };
 
 var teste = new Sup('5521989316579','012345678901234','Xing Ling Lee');
 teste.login('eW8hwE74KhuApT3n6VZihPt+oPI=');
-teste.sendMessage('5521999667644', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
-teste.sendMessage('5521999840775', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
+//teste.sendMessage('5521999667644', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
+//teste.sendMessage('5521999840775', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
 teste.sendMessage('5521991567340', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');

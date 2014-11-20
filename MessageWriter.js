@@ -49,24 +49,41 @@ MessageWriter.prototype.resetKey = function resetKey(index){
  * Create a New Message Node of given type and push it into Output array
  *
  * @param {String} type
- * @param {Object} [info  = {}]
+ * @param {Object} info
+ * @param {Function} [callback  = null]
  */
-MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(type, info){
-	info = info || {};
+MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(type, info, callback){
+		callback = callback || null;
 	var messageNode;
 
-	switch(type){
-		case 'text':
-			if(info.hasOwnProperty('text') && info.hasOwnProperty('key')){
-				//The text need to be parsed for emojis before being pushed to Writer
-				info.type = 'text';
+	if(!(info.hasOwnProperty('msgId'))){
+		this.emit('error', new Error('Missing Message ID property in object info: ' + util.inspect(info, { showHidden: false, depth: null, colors: true }), 'MISSING_PROP'));
+		return;
+	}
 
-				messageNode = this.confMsgNode(new MessageNode('body', null, null, info.text), info);
+	switch(type){
+		case 'presence':
+			if(info.hasOwnProperty('name') && info.hasOwnProperty('key')) {
+				messageNode = new MessageNode('presence', {name: info.name}, null, null, info.msgId, info.key, callback);
 				this.pushMsgNode(messageNode);
 
 			}else{
-				return new Error('Missing property in object info: ' + info, 'MISSING_PROP');
+				this.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
 			}
+
+			break;
+		case 'text':
+			if(info.hasOwnProperty('text') && info.hasOwnProperty('key')){
+				/** The text need to be parsed for emojis before being pushed to Writer */
+				info.type = 'text';
+
+				messageNode = this.confMsgNode(new MessageNode('body', null, null, info.text, info.msgId), info, callback);
+				this.pushMsgNode(messageNode);
+
+			}else{
+				this.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
+			}
+
 			break;
 		case 'image':
 			info.type = 'media';
@@ -98,7 +115,7 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 			if(info.hasOwnProperty('domain') && info.hasOwnProperty('resource')){
 				this.once('pushed', this.startStream);
 
-				messageNode = new MessageNode(null, {to: info.domain, resource: info.resource}, null, null);
+				messageNode = new MessageNode(null, {to: info.domain, resource: info.resource}, null, null, info.msgId);
 				this.pushMsgNode(messageNode, false);
 
 			}else{
@@ -108,7 +125,7 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 			break;
 
 		case 'stream:features':
-			messageNode = new MessageNode('stream:features', null, null, null);
+			messageNode = new MessageNode('stream:features', null, null, null, info.msgId);
 			this.pushMsgNode(messageNode);
 
 			break;
@@ -116,7 +133,7 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 		case 'auth':
 			if(info.hasOwnProperty('authHash') && info.hasOwnProperty('authBlob')){
 				//Todo: WARNING info.authBlob Needs to be encrypted before write the MessageNode
-				messageNode = new MessageNode('auth', info.authHash, null, info.authBlob);
+				messageNode = new MessageNode('auth', info.authHash, null, info.authBlob, info.msgId);
 				this.pushMsgNode(messageNode);
 
 			}else{
@@ -126,20 +143,13 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 			break;
 		case 'response':
 			if(info.hasOwnProperty('response')) {
-				messageNode = new MessageNode('response', {xmlns: 'urn:ietf:params:xml:ns:xmpp-sasl'}, null, info.response);
+				messageNode = new MessageNode('response', {xmlns: 'urn:ietf:params:xml:ns:xmpp-sasl'}, null, info.response, info.msgId);
 				this.pushMsgNode(messageNode);
 			}else{
 				this.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
 			}
 
 			break;
-		case 'presence':
-			if(info.hasOwnProperty('name') && info.hasOwnProperty('key')) {
-				messageNode = new MessageNode('presence', {name: info.name}, null, null, info.key);
-				this.pushMsgNode(messageNode);
-			}else{
-				this.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
-			}
 	}
 };
 
@@ -165,7 +175,8 @@ MessageWriter.prototype.pushMsgNode = function pushMessageNodeToInternalBuffer(m
 		if (control) {
 			this.control.push(index);
 		}
-		this.emit('pushed', index);
+
+		this.emit('pushed', index, messageNode.id);
 	}
 };
 
@@ -187,6 +198,8 @@ MessageWriter.prototype.write = function write(childProcess){
 			self.write(true);
 		});
 	}
+
+	console.log(length);
 
 	if(childProcess) {
 		if(length > 0) {
@@ -428,7 +441,7 @@ MessageWriter.prototype.flushBuffer = function flushBuffer(index, header){
 	//console.log(this.output[index].nodeString('tx  '));
 	console.log('Node');
 	console.log(util.inspect(this.output[index], { showHidden: false, depth: null, colors: true }));
-	this.emit('written', index, this.output[index].getMessage());
+	this.emit('written', index, this.output[index].id, this.output[index].getMessage(), this.output[index]._callback);
 };
 
 /**
@@ -483,15 +496,16 @@ MessageWriter.prototype.genJID = function generateJabberId(number){
  *
  * @param {MessageNode} messageNode
  * @param {Object} info
+ * @param {Object} [callback = null]
  * @returns {MessageNode}
  */
-MessageWriter.prototype.confMsgNode = function configureMessageNode(messageNode, info) {
+MessageWriter.prototype.confMsgNode = function configureMessageNode(messageNode, info, callback) {
 	if(info.hasOwnProperty('name') && info.hasOwnProperty('to') && info.hasOwnProperty('type') && info.hasOwnProperty('id')) {
 		info.id = 'message' + '-' + Math.floor(new Date().getTime() / 1000) + '-' + info.id;
 
-		var xNode = new MessageNode('x', {xmlns: 'jabber:x:event'}, [new MessageNode('server', null, null, null)], null);
-		var notifyNode = new MessageNode('notify', {xmlns: 'urn:xmpp:whatsapp', name: info.name}, null, null);
-		var requestNode = new MessageNode('request', {xmlns: 'urn:xmpp:receipts'}, null, null);
+		var xNode = new MessageNode('x', {xmlns: 'jabber:x:event'}, [new MessageNode('server', null, null, null)], null, info.msgId);
+		var notifyNode = new MessageNode('notify', {xmlns: 'urn:xmpp:whatsapp', name: info.name}, null, null, info.msgId);
+		var requestNode = new MessageNode('request', {xmlns: 'urn:xmpp:receipts'}, null, null, info.msgId);
 
 		return new MessageNode('message', {
 				to: this.genJID(info.to),
@@ -499,7 +513,7 @@ MessageWriter.prototype.confMsgNode = function configureMessageNode(messageNode,
 				id: info.id,
 				t: Math.floor(new Date().getTime() / 1000).toString()
 			},
-			[xNode, notifyNode, requestNode, messageNode], null, info.key);
+			[xNode, notifyNode, requestNode, messageNode], null, info.msgId, info.key, callback);
 
 	}else{
 		this.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));

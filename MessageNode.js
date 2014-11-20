@@ -6,14 +6,16 @@
 
 /**
  *
- * @param {string} tag
- * @param {Object} attributeHash
- * @param {Array} children
- * @param {string} data
- * @param {int} writerKeyIndex
- * @constructor [MessageNode]
+ * @param	{string} 	tag
+ * @param	{Object} 	attributeHash
+ * @param	{Array} 	children
+ * @param	{string} 	data
+ * @param	{int}		id
+ * @param	{int} 		[writerKeyIndex = null]
+ * @param	{Function}	[callback = null]
+ * @constructor 		[MessageNode]
  */
-function MessageNode(tag, attributeHash, children, data, writerKeyIndex){
+function MessageNode(tag, attributeHash, children, data, id, writerKeyIndex, callback){
 	var message = [];
 	var length = 0;
 
@@ -30,7 +32,7 @@ function MessageNode(tag, attributeHash, children, data, writerKeyIndex){
 	};
 
 	Object.defineProperties(this, {
-		'message': {
+		message: {
 			get: function getMessageArray(){
 				return message;
 
@@ -42,29 +44,36 @@ function MessageNode(tag, attributeHash, children, data, writerKeyIndex){
 				}
 			}
 		},
-		'length': {
+		length: {
 			get: function getMessageArrayLength(){
 				return length;
 			}
 		},
-		'tag': {
+		tag: {
 			value: tag,
 			enumerable: true
 		},
-		'attributeHash': {
+		attributeHash: {
 			value: attributeHash,
 			enumerable: true
 		},
-		'children': {
+		children: {
 			value: children,
 			enumerable: true
 		},
-		'data': {
+		data: {
 			value: data,
 			enumerable: true
 		},
-		_writerKeyIndex:{
-			value: writerKeyIndex
+		id: {
+			value: id,
+			enumerable: true
+		},
+		_writerKeyIndex: {
+			value: !isNaN(writerKeyIndex = Number(writerKeyIndex))? writerKeyIndex : null
+		},
+		_callback: {
+			value: typeof callback === 'function'? callback : typeof writerKeyIndex === 'function'? writerKeyIndex : null
 		}
 	});
 }
