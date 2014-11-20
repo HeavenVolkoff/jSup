@@ -237,8 +237,6 @@ Sup.prototype._onSend = function onSendEvent(bufferArray){
         bufferArray,
         function(buff, callback){
             try{
-                console.log('Send:');
-                console.log(buff[0].toString('hex'));
                 self.write(buff[0]);   //Write Message to Socket
                 self.emit('sent', buff[1]);  //Emit Event Sent Message
 
@@ -483,8 +481,6 @@ Sup.prototype.login = function loginToWhatsAppServer(password){
             function(error, data){
                 if(!error && data.length){
                     self._challengeData = data;
-                    console.log('challenge');
-                    console.log(self._challengeData);
                 }
 
                 self.doLogin();
@@ -521,4 +517,4 @@ var teste = new Sup('5521989316579', 'Xing Ling Lee');
 teste.login('eW8hwE74KhuApT3n6VZihPt+oPI=');
 //teste.sendMessage('5521999667644', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
 //teste.sendMessage('5521999840775', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
-teste.sendMessage('5521991567340', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
+//teste.sendMessage('5521991567340', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
