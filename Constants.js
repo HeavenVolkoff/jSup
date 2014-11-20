@@ -12,9 +12,7 @@ function Constants(){
      */
     Object.defineProperties(this, {
         CHALLENGE_DATA_FILE_NAME: {
-            value: 'nextChallenge.dat',
-            writable: true,
-            enumerable: true
+            value: 'nextChallenge.dat'
         },
         CONNECTED_STATUS: {
             value: 'connected'
@@ -24,6 +22,9 @@ function Constants(){
         },
         DISCONNECTED_STATUS: {
             value: 'disconnected'
+        },
+        IDENTITY_LENGTH:{
+            value: 48
         },
         MEDIA_FOLDER: {
             value: 'media'
@@ -65,10 +66,13 @@ function Constants(){
             value: 'Android'
         },
         WHATSAPP_VER: {
-            value: '2.11.378'
+            value: '2.11.448'
         },
         WHATSAPP_USER_AGENT: {
-            value: 'WhatsApp/2.11.378 Android/4.3 Device/GalaxyS3'
+            value: 'WhatsApp/2.11.448 Android/4.3 Device/GalaxyS3'
+        },
+        WHATSAPP_VER_CHECKER: {
+            value: 'https://coderus.openrepos.net/whitesoft/whatsapp_version'
         }
     });
 }

@@ -73,7 +73,7 @@ function MessageNode(tag, attributeHash, children, data, id, writerKeyIndex, cal
 			value: !isNaN(writerKeyIndex = Number(writerKeyIndex))? writerKeyIndex : null
 		},
 		_callback: {
-			value: typeof callback === 'function'? callback : typeof writerKeyIndex === 'function'? writerKeyIndex : null
+			value: typeof arguments[arguments.length - 1] === 'function'? arguments[arguments.length - 1] : null
 		}
 	});
 }

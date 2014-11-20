@@ -14,14 +14,15 @@ var KeyStream = require('./KeyStream');
 var MessageReader = require('./MessageReader');
 var MessageWriter = require('./MessageWriter');
 var Socket = require('net').Socket;
+var util = require('util');
 
 
-require('util').inherits(Sup, Socket);
-function Sup(number, identity, nickname, messageWriter) {
+util.inherits(Sup, Socket);
+function Sup(number, nickname, messageWriter) {
     if (!(this instanceof Sup)){
-        return new Sup(number, identity, nickname, messageWriter);
+        return new Sup(number, nickname, messageWriter);
     }
-    if (!(number || identity || nickname)){
+    if (!(number || nickname)){
         throw Error('Missing Basic Info');
     }
 
@@ -51,7 +52,7 @@ function Sup(number, identity, nickname, messageWriter) {
 
     //######################### Some Default Set-Up's ################################
     this.setupListeners();
-    this.setTimeout(self.TIMEOUT_SEC);
+    //this.setTimeout(self.TIMEOUT_SEC);
 
     //############################# Properties #######################################
     Object.defineProperties(this, {
@@ -69,8 +70,14 @@ function Sup(number, identity, nickname, messageWriter) {
             writable: true
         },
         identity: {
-            //Identity validation, if not valid compute new identity hash
-            value: identity && decodeURIComponent(identity).length === 20? identity : this.buildIdentity(identity),
+            value: self.buildIdentity(number, function(error, data){
+                if(!error){
+                    self.identity = data;
+                }else{
+                    self.emit('error', error);
+                }
+            }),
+            writable: true,
             enumerable: true
         },
         loginStatus: {
@@ -194,7 +201,10 @@ Sup.prototype._onConnected = function onConnectedSuccessEvent(challenge){
 };
 
 Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
+
     //console.log(messageNode.nodeString('rx  '));
+    console.log('Received');
+    console.log(util.inspect(messageNode, { showHidden: false, depth: null, colors: true }));
     if(messageNode.attributeHash.hasOwnProperty('id')){
         this._msgId = messageNode.id;
     }
@@ -215,14 +225,13 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
 
 Sup.prototype._onPushed = function onPushedEvent(index, id){
     if(id.slice(0, id.indexOf('-')) === this.phoneNumber){
-        console.log('foi');
         this._writingMsg = index;
     }
 };
 
 Sup.prototype._onSend = function onSendEvent(bufferArray){
     var self = this;
-    console.log('send '+ bufferArray.toString());
+    //console.log('send '+ bufferArray.toString());
 
     async.eachSeries(
         bufferArray,
@@ -233,11 +242,11 @@ Sup.prototype._onSend = function onSendEvent(bufferArray){
                 self.write(buff[0]);   //Write Message to Socket
                 self.emit('sent', buff[1]);  //Emit Event Sent Message
 
-                if(typeof buff[2] === 'function'){
-                    buff[2](callback); //TODO: maybe give message buff and/or id to callback??????
-                }else{
-                    callback();
+                if(typeof buff[2] === 'function') {
+                    buff[2](); //TODO: maybe give message buff and/or id to callback??????
                 }
+                callback();
+
             }catch(error){
                 callback(error);
             }
@@ -320,12 +329,41 @@ Sup.prototype.disconnect = function endSocketConnection(){
     this.destroy();
 };
 
-Sup.prototype.buildIdentity =  function computeIdentitySha1(identity){
-    var sha1 = crypto.createHash('sha1');
+Sup.prototype.buildIdentity = function buildIdentity(identity, callback){
+    var self = this;
 
-    sha1.update(identity);
+    fs.readFile(identity+'.dat', function(error, data){
+        if(!error && data.length === self.IDENTITY_LENGTH) {
+            callback(null, data);
+        }else{
+            crypto.pseudoRandomBytes(16, function(error, buff){
+                if(!error){
+                    var count = 0;
+                    var identityBuff = new Buffer(buff.length * 2 + 1);
+                    identityBuff.write('%', count++);
 
-    return sha1.digest('binary');
+                    async.eachSeries(
+                        buff,
+                        function(data, callback){
+                            identityBuff.writeUInt8(data, count++);
+                            identityBuff.write('%', count++);
+                            callback();
+                        },
+                        function(){
+                            fs.writeFile(identity+'.dat', identityBuff, function(error){
+                                if(error) {
+                                    self.emit('error', error);
+                                }
+                            });
+                            callback(null, identityBuff);
+                        }
+                    );
+                }else{
+                    callback(error, null);
+                }
+            });
+        }
+    });
 };
 
 Sup.prototype.openCSV = function OpenCSVFile(path, callback){
@@ -352,12 +390,13 @@ Sup.prototype.dissectPhone = function dissectCountryCodeFromPhoneNumber(path, ph
                 }
 
                 var phoneInfo = {
-                    'country': data[0],
-                    'cc': data[1],
-                    'phone': phone.substr(data[1].length),
-                    'mcc': data[2].split('|')[0],
-                    'ISO3166': data[3],
-                    'ISO639': data[4]
+                    country: data[0],
+                    cc: data[1],
+                    phone: phone.substr(data[1].length),
+                    mcc: data[2].split('|')[0],
+                    ISO3166: data[3],
+                    ISO639: data[4],
+                    mnc: data[5]
                 };
 
                 callback(null, phoneInfo);
@@ -396,7 +435,7 @@ Sup.prototype.createAuthBlob = function createAuthBlob(callback){
                         },
                         function encodeAuthMessage(phoneInfo, callback) {
                             var time = parseInt(new Date().getTime() / 100);
-                            var buff = new Buffer('\0\0\0\0' + self.phoneNumber + self._challengeData + time + self.WHATSAPP_USER_AGENT + ' MccMnc/' + strPad(phoneInfo.mcc, 3, '0', 'STR_PAD_LEFT') + '001');
+                            var buff = new Buffer('\0\0\0\0' + self.phoneNumber + self._challengeData + time + self.WHATSAPP_USER_AGENT + ' MccMnc/' + strPad(phoneInfo.mcc, 3, '0', 'STR_PAD_LEFT') + phoneInfo.mnc);
                             callback(null, buff);
                         }
                     ], callback
@@ -424,7 +463,7 @@ Sup.prototype.doLogin = function doLogin(){
     self.createAuthBlob(function(error, authBlob){
         self._writer.writeNewMsg('start:stream', {domain: self.WHATSAPP_SERVER, resource: self.WHATSAPP_DEVICE + '-' + self.WHATSAPP_VER + '-' + self.PORT, msgId: self.phoneNumber+'-'+self._msgId});
         self._writer.writeNewMsg('stream:features', {msgId: self.phoneNumber+'-'+self._msgId});
-        self._writer.writeNewMsg('auth', {authHash: {xmlns: 'urn:ietf:params:xml:ns:xmpp-sasl', mechanism: 'WAUTH-2', user: self.phoneNumber}, authBlob: authBlob, msgId: self.phoneNumber+'-'+self._msgId});
+        self._writer.writeNewMsg('auth', {mechanism: 'WAUTH-2', user: self.phoneNumber, authBlob: authBlob, msgId: self.phoneNumber+'-'+self._msgId});
     });
 };
 
@@ -467,7 +506,7 @@ Sup.prototype.sendMessage = function sendTextMessage(to, text, callback){
     }
 };
 
-var teste = new Sup('5521989316579','012345678901234','Xing Ling Lee');
+var teste = new Sup('5521989316579', 'Xing Ling Lee');
 teste.login('eW8hwE74KhuApT3n6VZihPt+oPI=');
 //teste.sendMessage('5521999667644', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
 //teste.sendMessage('5521999840775', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');

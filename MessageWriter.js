@@ -75,9 +75,18 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 		case 'text':
 			if(info.hasOwnProperty('text') && info.hasOwnProperty('key')){
 				/** The text need to be parsed for emojis before being pushed to Writer */
-				info.type = 'text';
+				messageNode = new MessageNode(
+					'message',
+					{
+						to: this.genJID(info.to),
+						type: 'text',
+						id: 'message' + '-' + Math.floor(new Date().getTime() / 1000) + '-' + info.id,
+						t: Math.floor(new Date().getTime() / 1000).toString()
+					},
+					[new MessageNode('body', null, null, info.text, info.msgId)],
+					null, info.msgId, info.key, callback
+				);
 
-				messageNode = this.confMsgNode(new MessageNode('body', null, null, info.text, info.msgId), info, callback);
 				this.pushMsgNode(messageNode);
 
 			}else{
@@ -125,15 +134,21 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 			break;
 
 		case 'stream:features':
-			messageNode = new MessageNode('stream:features', null, null, null, info.msgId);
+			var childrens = [
+				new MessageNode('readreceipts', null, null, null, info.msgId),
+				new MessageNode('groups_v2', null, null, null, info.msgId),
+				new MessageNode('privacy', null, null, null, info.msgId),
+				new MessageNode('presence', null, null, null, info.msgId)
+			];
+			messageNode = new MessageNode('stream:features', null, childrens, null, info.msgId);
 			this.pushMsgNode(messageNode);
 
 			break;
 
 		case 'auth':
-			if(info.hasOwnProperty('authHash') && info.hasOwnProperty('authBlob')){
+			if(info.hasOwnProperty('mechanism') && info.hasOwnProperty('user') && info.hasOwnProperty('authBlob')){
 				//Todo: WARNING info.authBlob Needs to be encrypted before write the MessageNode
-				messageNode = new MessageNode('auth', info.authHash, null, info.authBlob, info.msgId);
+				messageNode = new MessageNode('auth', {mechanism: info.mechanism, user: info.user}, null, info.authBlob, info.msgId);
 				this.pushMsgNode(messageNode);
 
 			}else{
@@ -198,8 +213,6 @@ MessageWriter.prototype.write = function write(childProcess){
 			self.write(true);
 		});
 	}
-
-	console.log(length);
 
 	if(childProcess) {
 		if(length > 0) {
@@ -280,7 +293,7 @@ MessageWriter.prototype.writeToken = function writeToken(index, token){
 	if(token < 0xF5){
 		this.output[index].write(token, 'int8');
 	}else if(token <= 0x1F4){
-		this.output[index].write('\xfe').write(String.fromCharCode(token - 0xF5));
+		this.output[index].write('\xfe').write(token - 0xF5);
 	}
 };
 
@@ -400,7 +413,7 @@ MessageWriter.prototype.writeInfo = function writeInternalInfo(index, child){
 	}
 
 	if(children){
-		this.writeLength(index, Object.keys(children).length);
+		this.writeLength(index, children.length);
 
 		for(var key in children){ //TODO: make a use of async to write the children info in parallel
 			if(children.hasOwnProperty(key)){
@@ -439,7 +452,7 @@ MessageWriter.prototype.flushBuffer = function flushBuffer(index, header){
 	}
 	this.output[index].writeHeader(size).writeHeader(header);
 	//console.log(this.output[index].nodeString('tx  '));
-	console.log('Node');
+	console.log('Send');
 	console.log(util.inspect(this.output[index], { showHidden: false, depth: null, colors: true }));
 	this.emit('written', index, this.output[index].id, this.output[index].getMessage(), this.output[index]._callback);
 };
@@ -488,36 +501,6 @@ MessageWriter.prototype.genJID = function generateJabberId(number){
 	}else {
 		this.emit(new TypeError('Number is not a phone formatted string'));
 		return number;
-	}
-};
-
-/**
- * Configure the Message Node with it's right childes and default values
- *
- * @param {MessageNode} messageNode
- * @param {Object} info
- * @param {Object} [callback = null]
- * @returns {MessageNode}
- */
-MessageWriter.prototype.confMsgNode = function configureMessageNode(messageNode, info, callback) {
-	if(info.hasOwnProperty('name') && info.hasOwnProperty('to') && info.hasOwnProperty('type') && info.hasOwnProperty('id')) {
-		info.id = 'message' + '-' + Math.floor(new Date().getTime() / 1000) + '-' + info.id;
-
-		var xNode = new MessageNode('x', {xmlns: 'jabber:x:event'}, [new MessageNode('server', null, null, null)], null, info.msgId);
-		var notifyNode = new MessageNode('notify', {xmlns: 'urn:xmpp:whatsapp', name: info.name}, null, null, info.msgId);
-		var requestNode = new MessageNode('request', {xmlns: 'urn:xmpp:receipts'}, null, null, info.msgId);
-
-		return new MessageNode('message', {
-				to: this.genJID(info.to),
-				type: info.type,
-				id: info.id,
-				t: Math.floor(new Date().getTime() / 1000).toString()
-			},
-			[xNode, notifyNode, requestNode, messageNode], null, info.msgId, info.key, callback);
-
-	}else{
-		this.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
-		return null;
 	}
 };
 

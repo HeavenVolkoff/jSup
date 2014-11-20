@@ -65,15 +65,17 @@ MessageReader.prototype._transform = function transform(chunk, encoding, done){
 				var header = chunk.slice(0, 3); //get Message Header
 
 				if (header.length === 3) {
-					length = (basicFunc.shiftLeft(header[1], 8) | header[2]) + header.length; //calculate message size and sum the header length
-					if (chunk[length - 1] !== undefined) {	//Verifies if message length is equal the declared size
-						var messageNode = [basicFunc.shiftRight(chunk[0] & 0xF0, 4), length - header.length, chunk.slice(3, length)]; //add [flag, size, message] to internal buffer
+					length = (basicFunc.shiftLeft(header[0] & 0x0F, 16) | basicFunc.shiftLeft(header[1], 8) | header[2]) + header.length; //calculate message size and sum the header length
+
+					if (chunk[length - 1] !== undefined) {	//Verifies if message length is valid
+						var message = [basicFunc.shiftRight(chunk[0] & 0xF0, 4), length - header.length, chunk.slice(3, length)]; //add [flag, size, message] to internal buffer
 						var index = self.messages.indexOf(null);	//get Null position in array if it exists
 
 						if (index !== -1) {	//push message to messages internal array
-							self.messages[index] = messageNode;
+							self.messages[index] = message;
+
 						} else {
-							self.messages = messageNode;
+							self.messages = message;
 							index = self.messages.length - 1;
 						}
 
@@ -243,7 +245,7 @@ MessageReader.prototype.readString =  function readString(index, tokenIndex){
 	} else if(tokenIndex === 0){
 		token = '';
 
-	} else if((tokenIndex > 4) && (tokenIndex < 245)){
+	} else if((tokenIndex > 2) && (tokenIndex < 245)){
 		token = this.getToken(index, tokenIndex);
 
 	} else if(tokenIndex === 252){
@@ -261,7 +263,7 @@ MessageReader.prototype.readString =  function readString(index, tokenIndex){
 		var server = this.readString(index, this.readInt8(index));
 
 		if((user.length > 0) && (server.length > 0)){
-			token = user + '@' + server;
+			token = user.toString('utf8') + '@' + server.toString('utf8');
 		} else if(server.length > 0){
 			token = server;
 		}
@@ -345,10 +347,14 @@ MessageReader.prototype.readList =  function readList(index, tokenIndex){
  * @param index
  */
 MessageReader.prototype.readMessage = function readMessageNode(index){
+	console.log('Received Buffer:');
+	console.log(this.messages[index][2]);
 	if(this.messages[index][0]){ //check if message is encrypted
 		if(this.key instanceof KeyStream){
 			var realSize = this.messages[index][1] - 4;
 			this.messages[index][2] = this.key.decodeMessage(this.messages[index][2], realSize, 0, realSize); //decrypt message
+			console.log('Received Buffer decoded:');
+			console.log(this.messages[index][2]);
 
 		}else{
 			this.emit('error', new Error('Encountered encrypted message, missing key', 'MISSING_KEY'));

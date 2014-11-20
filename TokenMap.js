@@ -451,7 +451,7 @@ module.exports = TokenMap;
 		 * Returns an object with the string array name and the index of the token string, or null if nothing is founded
 		 *
 		 * @param {string} token
-		 * @returns {[boolean, object]}
+		 * @returns {[boolean, int]}
 		 */
 		'getTokenIndex': function getTokenIndex(token){
 			var tokenIndex = this.primaryStrings.indexOf(token);
