@@ -107,6 +107,10 @@ function Sup(number, nickname, messageWriter) {
         },
 
         //#################### Internal Properties ####################################
+        _autoReceipt: {
+            value: true,
+            writable: true
+        },
         _challengeData: {
             writable: true
         },
@@ -201,6 +205,7 @@ Sup.prototype._onConnected = function onConnectedSuccessEvent(challenge){
 };
 
 Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
+    var self = this;
 
     //console.log(messageNode.nodeString('rx  '));
     console.log('Received');
@@ -216,6 +221,46 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
             break;
         case 'success':
             this.emit('connected', messageNode.data);
+
+            break;
+        case 'message':
+            switch (messageNode.getAttribute('type')){
+                case 'text':
+                    messageNode.getChild('body', function(body){
+                        if(body){
+                            if(self._autoReceipt){
+                                self._writer.writeNewMsg('receipt', {type: 'read', to: messageNode.getAttribute('from'), id: messageNode.getAttribute('id'), key: self._writerKeyIndex, msgId: self.phoneNumber+'-'+self._msgId});
+                            }
+
+                            var author = messageNode.getAttribute('participant');
+
+                            if(author === ''){
+                                self.emit('message',
+                                    self.phoneNumber,
+                                    messageNode.getAttribute('from'),
+                                    messageNode.getAttribute('id'),
+                                    messageNode.getAttribute('type'),
+                                    messageNode.getAttribute('t'),
+                                    messageNode.getAttribute('notify'),
+                                    body.getData('utf8')
+                                );
+                            }else{
+                                self.emit('groupMessage',
+                                    self.phoneNumber,
+                                    messageNode.getAttribute('from'),
+                                    author,
+                                    messageNode.getAttribute('id'),
+                                    messageNode.getAttribute('type'),
+                                    messageNode.getAttribute('t'),
+                                    messageNode.getAttribute('notify'),
+                                    body.getData('utf8')
+                                );
+                            }
+                        }
+                    });
+
+                    break;
+            }
 
             break;
         default:

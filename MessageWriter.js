@@ -62,16 +62,6 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 	}
 
 	switch(type){
-		case 'presence':
-			if(info.hasOwnProperty('name') && info.hasOwnProperty('key')) {
-				messageNode = new MessageNode('presence', {name: info.name}, null, null, info.msgId, info.key, callback);
-				this.pushMsgNode(messageNode);
-
-			}else{
-				this.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
-			}
-
-			break;
 		case 'text':
 			if(info.hasOwnProperty('text') && info.hasOwnProperty('key')){
 				/** The text need to be parsed for emojis before being pushed to Writer */
@@ -160,6 +150,26 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 			if(info.hasOwnProperty('response')) {
 				messageNode = new MessageNode('response', {xmlns: 'urn:ietf:params:xml:ns:xmpp-sasl'}, null, info.response, info.msgId);
 				this.pushMsgNode(messageNode);
+			}else{
+				this.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
+			}
+
+			break;
+		case 'presence':
+			if(info.hasOwnProperty('name') && info.hasOwnProperty('key')) {
+				messageNode = new MessageNode('presence', {name: info.name}, null, null, info.msgId, info.key, callback);
+				this.pushMsgNode(messageNode);
+
+			}else{
+				this.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
+			}
+
+			break;
+		case 'receipt':
+			if(info.hasOwnProperty('type') && info.hasOwnProperty('to') && info.hasOwnProperty('id')){
+				messageNode = new MessageNode('receipt', {type: info.type, to: info.to, id: info.id, t: Math.floor(new Date().getTime() / 1000).toString()}, null, null, info.msgId, info.key, callback);
+				this.pushMsgNode(messageNode);
+
 			}else{
 				this.emit('error', new Error('Missing property in object info: ' + info, 'MISSING_PROP'));
 			}
@@ -334,7 +344,7 @@ MessageWriter.prototype.writeString = function writeString(index, tag) {
 		}
 		this.writeToken(index, token[1]);
 	}else{
-		var position = tag.indexOf('@');
+		var position = typeof tag === 'string'? tag.indexOf('@') : -1;
 
 		if(position !== -1){
 			var server = tag.substr(position + 1);
@@ -439,6 +449,9 @@ MessageWriter.prototype.flushBuffer = function flushBuffer(index, header){
 	var data = this.output[index].getMessage();
 	var key = this.key[this.output[index]._writerKeyIndex];
 
+	console.log('Send Not Encoded');
+	console.log(data);
+
 	if(key){
 		this.output[index].overwrite(key.encodeMessage(data, size, 0, size));
 		size = this.output[index].length;
@@ -453,6 +466,7 @@ MessageWriter.prototype.flushBuffer = function flushBuffer(index, header){
 	this.output[index].writeHeader(size).writeHeader(header);
 	//console.log(this.output[index].nodeString('tx  '));
 	console.log('Send');
+	console.log(this.output[index].getMessage());
 	console.log(util.inspect(this.output[index], { showHidden: false, depth: null, colors: true }));
 	this.emit('written', index, this.output[index].id, this.output[index].getMessage(), this.output[index]._callback);
 };

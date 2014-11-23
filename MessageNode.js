@@ -4,6 +4,8 @@
 
 'use strict';
 
+var async = require('async');
+
 /**
  *
  * @param	{string} 	tag
@@ -327,41 +329,57 @@ module.exports = MessageNode;
 		 * Get children supports string tag or children index
 		 *
 		 * @param {string|int} tag
+		 * @param {function} callback
 		 * @return MessageNode
 		 */
-		getChild: function getChild(tag){
+		getChild: function getChild(tag, callback){
 			if(this.children){
+				var grandSon = null;
+
 				//Check if tag is a int
 				if(!isNaN(Number(tag)) && (tag % 1 === 0)){
-					if(this.children[tag] !== undefined || this.children[tag] !== null){
-						return this.children[tag];
+					if(this.children[tag]){
+						callback(this.children[tag]);
 					}else{
-						return null;
+						callback(null);
 					}
-				}else{
-					this.children.forEach(function(child){
-						if(child.tag === tag){
-							return child;
-						}else{
-							var string = child.children.getChild(tag);
-							if(string){
-								return string;
+
+				}else if(typeof tag === 'string'){
+					async.detect(
+						this.children,
+						function(child, callback){
+							if(child.tag === tag){
+								callback(true);
+							}else{
+								child.getChild(tag, function(child){
+									if(child){
+										grandSon = child;
+										callback(true);
+									}else{
+										callback(false);
+									}
+								});
+							}
+						},
+						function(foundChild){
+							if(foundChild && !grandSon){
+								callback(foundChild);
+							}else if(grandSon){
+								callback(grandSon);
+							}else{
+								callback(null);
 							}
 						}
-					});
-				}
-			}
 
-			return null;
+					);
+				}
+			}else{
+				callback(null);
+			}
 		},
 
-		/**
-		 * @deprecated //TODO: see if it will be used if not
-		 * @param {string} tag
-		 * @return bool
-		 */
-		hasChild: function checkIfHasChild(tag){
-			return (this.children[tag] !== null && this.children[tag] !== undefined);
+		getData: function getStringData(encoding){
+			return this.data.toString(encoding);
 		},
 
 		/**
