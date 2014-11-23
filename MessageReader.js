@@ -392,12 +392,8 @@ MessageReader.prototype.readInternal = function readInternalAttributesFromMessag
 		messageNode = new MessageNode('start', attributesHash, null, null);
 	}else if(token === 2){
 		if(!child){
-			this.once('error', function(error){
-				if(error){
-					console.log(error);
-				}
-			});
-			this.emit('error', new Error('Null Message', 'MSG_NULL'));
+			//this.emit('error', new Error('Null Message', 'MSG_NULL'));
+			console.log('Null Message');
 			this.clearPos(index);
 		}
 	}else {

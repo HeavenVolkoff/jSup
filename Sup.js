@@ -108,11 +108,30 @@ function Sup(number, nickname, messageWriter) {
 
         //#################### Internal Properties ####################################
         _autoReceipt: {
-            value: true,
+            value: 'read',
             writable: true
         },
         _challengeData: {
             writable: true
+        },
+        _writeMsg:{
+          value: function(type, info, key, callback){
+              info = info instanceof Object? info : {};
+              key = typeof key === 'boolean'? key : false;
+              callback = arguments[arguments.length - 1];
+              callback = typeof callback === 'function'? callback : null;
+
+              console.log(key);
+
+              if(key){
+                info.key = self._writerKeyIndex;
+              }
+
+              info.id = self._msgId;
+              info.owner = self.phoneNumber;
+
+              MessageWriter.prototype.writeNewMsg.call(self._writer, type, info, callback);
+          }
         },
         _writingMsg: {
             get: function(){
@@ -180,7 +199,7 @@ Sup.prototype._onChallenge = function processChallengeData(challenge){
 
                 var buffer = Buffer.concat([new Buffer('\0\0\0\0' + self.phoneNumber), self._challengeData]);
                 var array = self._writerKey.encodeMessage(buffer, 0, 4, buffer.length - 4);
-                self._writer.writeNewMsg('response', {response: array, msgId: self.phoneNumber+'-'+self._msgId});
+                self._writeMsg('response', {response: array});
 
             }else{
                 self.emit('error', error);
@@ -199,7 +218,7 @@ Sup.prototype._onConnected = function onConnectedSuccessEvent(challenge){
             self.emit('error', error);
         }
     });
-    self._writer.writeNewMsg('presence', {name: self.name, key: self._writerKeyIndex, msgId: self.phoneNumber+'-'+self._msgId}, function(){
+    self._writeMsg('presence', {name: self.name}, true, function(){
         self.loginStatus = self.CONNECTED_STATUS;
     });
 };
@@ -229,7 +248,7 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
                     messageNode.getChild('body', function(body){
                         if(body){
                             if(self._autoReceipt){
-                                self._writer.writeNewMsg('receipt', {type: 'read', to: messageNode.getAttribute('from'), id: messageNode.getAttribute('id'), key: self._writerKeyIndex, msgId: self.phoneNumber+'-'+self._msgId});
+                                self._writeMsg('receipt', {type: self._autoReceipt, to: messageNode.getAttribute('from'), receivedMsgId: messageNode.getAttribute('id')}, true);
                             }
 
                             var author = messageNode.getAttribute('participant');
@@ -504,9 +523,9 @@ Sup.prototype.doLogin = function doLogin(){
     self._reader.resetKey();
 
     self.createAuthBlob(function(error, authBlob){
-        self._writer.writeNewMsg('start:stream', {domain: self.WHATSAPP_SERVER, resource: self.WHATSAPP_DEVICE + '-' + self.WHATSAPP_VER + '-' + self.PORT, msgId: self.phoneNumber+'-'+self._msgId});
-        self._writer.writeNewMsg('stream:features', {msgId: self.phoneNumber+'-'+self._msgId});
-        self._writer.writeNewMsg('auth', {mechanism: 'WAUTH-2', user: self.phoneNumber, authBlob: authBlob, msgId: self.phoneNumber+'-'+self._msgId});
+        self._writeMsg('start:stream');
+        self._writeMsg('stream:features');
+        self._writeMsg('auth', {authBlob: authBlob});
     });
 };
 
@@ -540,17 +559,9 @@ Sup.prototype.sendMessage = function sendTextMessage(to, text, callback){
     var self = this;
 
     if(self.loginStatus === self.CONNECTED_STATUS) {
-        var msgId = self._msgId;
-            text = basicFunc.parseMsgEmojis(text);
+        text = basicFunc.parseMsgEmojis(text);
 
-        self._writer.writeNewMsg('text', {
-            text: text,
-            key: self._writerKeyIndex,
-            name: self.name,
-            to: to,
-            id: msgId,
-            msgId: self.phoneNumber + '-' + msgId
-        }, callback);
+        self._writeMsg('text', {text: text, to: to}, true, callback);
     }else {
         setImmediate(function () {
             self.sendMessage(to, text, callback);
@@ -562,4 +573,4 @@ var teste = new Sup('5521989316579', 'Xing Ling Lee');
 teste.login('eW8hwE74KhuApT3n6VZihPt+oPI=');
 //teste.sendMessage('5521999667644', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
 //teste.sendMessage('5521999840775', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
-//teste.sendMessage('5521991567340', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
+teste.sendMessage('5521991567340', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
