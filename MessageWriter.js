@@ -131,7 +131,7 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
                                 id: self.createMsgId('getproperties', info.id),
                                 type: 'get',
                                 xmlns: 'x',
-                                to: this.WHATSAPP_SERVER
+                                to: self.WHATSAPP_SERVER
                             };
                             children = [new MessageNode('props', null, null, null, ownerId)];
                             data = null;
@@ -146,9 +146,27 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
                                     id: self.createMsgId('config', info.id),
                                     type: 'set',
                                     xmlns: 'urn:xmpp:whatsapp:push',
-                                    to: this.WHATSAPP_SERVER
+                                    to: self.WHATSAPP_SERVER
                                 };
                                 children = [new MessageNode('config', {plataform: 'none', lc: info.phoneObj.ISO3166, lg: info.phoneObj.ISO639}, null, null, ownerId)];
+                                data = null;
+
+                                messageNode = new MessageNode('iq', attribute, children, data, ownerId, info.key, msgCallback);
+                                self.pushMsgNode(messageNode);
+
+                            }else{
+                                self.emit('error', new Error('Missing property phoneObj in object info: ' + util.inspect(info, {showHidden: false, depth: null, colors: true}), 'MISSING_PROP'));
+                            }
+
+                            break;
+                        case 'pong':
+                            if(info.hasOwnProperty('receivedMsgId')){
+                                attribute = {
+                                    to: self.WHATSAPP_SERVER,
+                                    id: info.receivedMsgId,
+                                    type: 'result'
+                                };
+                                children = null;
                                 data = null;
 
                                 messageNode = new MessageNode('iq', attribute, children, data, ownerId, info.key, msgCallback);
@@ -203,7 +221,7 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
                             //TODO: Implement state message composer
                             break;
                         default:
-                            this.emit('error', new Error('Encrypted Message type not supported, check if this should be a not encrypted message', 'MSG_TYPE'));
+                            self.emit('error', new Error('Encrypted Message type not supported, check if this should be a not encrypted message', 'MSG_TYPE'));
                             break;
                     }
                 } else {
@@ -266,7 +284,7 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 
                             break;
                         default:
-                            this.emit('error', new Error('Not Encrypt Message type unsupported, check if you forgot to add the key index to the info object', 'MSG_TYPE'));
+                            self.emit('error', new Error('Not Encrypt Message type unsupported, check if you forgot to add the key index to the info object', 'MSG_TYPE'));
                             break;
                     }
                 }

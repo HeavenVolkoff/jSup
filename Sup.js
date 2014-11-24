@@ -116,12 +116,9 @@ function Sup(number, nickname, messageWriter) {
         },
         _writeMsg:{
           value: function(type, info, key, callback){
+              key = typeof key === 'boolean'? key : typeof info === 'boolean'? info : false;
               info = info instanceof Object? info : {};
-              key = typeof key === 'boolean'? key : false;
-              callback = arguments[arguments.length - 1];
-              callback = typeof callback === 'function'? callback : null;
-
-              console.log(key);
+              callback = typeof arguments[arguments.length - 1] === 'function'? arguments[arguments.length - 1] : null;
 
               if(key){
                 info.key = self._writerKeyIndex;
@@ -230,16 +227,16 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
     console.log('Received');
     console.log(util.inspect(messageNode, { showHidden: false, depth: null, colors: true }));
     if(messageNode.attributeHash.hasOwnProperty('id')){
-        this._msgId = messageNode.id;
+        self._msgId = messageNode.id;
     }
 
     switch(messageNode.tag){
         case 'challenge':
-            this.emit('_challenge', messageNode.data);
+            self.emit('_challenge', messageNode.data);
 
             break;
         case 'success':
-            this.emit('connected', messageNode.data);
+            self.emit('connected', messageNode.data);
 
             break;
         case 'message':
@@ -279,6 +276,12 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
                     });
 
                     break;
+            }
+
+            break;
+        case 'iq':
+            if(messageNode.getAttribute('type') === 'get' && messageNode.getAttribute('xmlns') === 'urn:xmpp:ping'){
+                self._writeMsg('pong', {receivedMsgId: messageNode.getAttribute('id')}, true);
             }
 
             break;
@@ -569,8 +572,28 @@ Sup.prototype.sendMessage = function sendTextMessage(to, text, callback){
     }
 };
 
+Sup.prototype.configureProps = function getServerPropertiesSendClientConfig(){
+    var self = this;
+
+    if(self.loginStatus === self.CONNECTED_STATUS) {
+        self._writeMsg('props', true);
+        self.dissectPhone(self.COUNTRIES, self.phoneNumber, function(error, phoneInfo){
+            if(!error){
+                self._writeMsg('config', {phoneObj: phoneInfo}, true);
+            }else {
+                self.emit('error', error);
+            }
+        });
+    }else{
+        setImmediate(function () {
+            self.configureProps();
+        });
+    }
+};
+
 var teste = new Sup('5521989316579', 'Xing Ling Lee');
 teste.login('eW8hwE74KhuApT3n6VZihPt+oPI=');
+teste.configureProps();
 //teste.sendMessage('5521999667644', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
 //teste.sendMessage('5521999840775', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
 teste.sendMessage('5521991567340', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');

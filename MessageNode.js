@@ -370,7 +370,6 @@ module.exports = MessageNode;
 								callback(null);
 							}
 						}
-
 					);
 				}
 			}else{
