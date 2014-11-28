@@ -66,10 +66,10 @@ function Constants(){
             value: 'Android'
         },
         WHATSAPP_VER: {
-            value: '2.11.448'
+            value: '2.11.453'
         },
         WHATSAPP_USER_AGENT: {
-            value: 'WhatsApp/2.11.448 Android/4.3 Device/GalaxyS3'
+            value: 'WhatsApp/2.11.453 Android/4.3 Device/GalaxyS3'
         },
         WHATSAPP_VER_CHECKER: {
             value: 'https://coderus.openrepos.net/whitesoft/whatsapp_version'

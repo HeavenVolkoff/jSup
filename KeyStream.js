@@ -5,6 +5,7 @@
 'use strict';
 
 var RC4 = require('./RC4');
+var crypto = require('crypto');
 
 /**
  *
@@ -20,7 +21,7 @@ function KeyStream(key, macKey){
 			value: new RC4(key, 768)
 		},
 		macKey: {
-			value: new Buffer(macKey)
+			value: macKey instanceof Buffer? macKey : typeof macKey === 'number'? new Buffer(macKey.toString(16), 'hex') : null
 		},
 		seq: {
 			value: 0,
@@ -39,7 +40,6 @@ KeyStream.prototype = {
 	 * @returns {SlowBuffer}
 	 */
 	'computeMac': function computeMac(buffer, offset, length){
-        var crypto = require('crypto');
         var hmac = crypto.createHmac('sha1', this.macKey);
         var seqBuff = new Buffer(   String.fromCharCode(this.seq >> 24) +
                                     String.fromCharCode(this.seq >> 16) +
@@ -47,10 +47,11 @@ KeyStream.prototype = {
                                     String.fromCharCode(this.seq)
                                 );
 
-		hmac.update(buffer.slice(offset, offset + length));
-        hmac.update(seqBuff);
+		hmac.write(buffer.slice(offset, offset + length));
+        hmac.write(seqBuff);
+		hmac.end();
         this.seq++;
-        return hmac.digest();
+        return hmac.read();
 	},
 
 	/**

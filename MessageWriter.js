@@ -572,9 +572,6 @@ MessageWriter.prototype.flushBuffer = function flushBuffer(index, header) {
     var data = this.output[index].getMessage();
     var key = this.key[this.output[index]._writerKeyIndex];
 
-    console.log('Send Not Encoded');
-    console.log(data);
-
     if (key) {
         this.output[index].overwrite(key.encodeMessage(data, size, 0, size));
         size = this.output[index].length;
@@ -588,9 +585,6 @@ MessageWriter.prototype.flushBuffer = function flushBuffer(index, header) {
     }
     this.output[index].writeHeader(size).writeHeader(header);
     //console.log(this.output[index].nodeString('tx  '));
-    console.log('Send');
-    console.log(this.output[index].getMessage());
-    console.log(util.inspect(this.output[index], {showHidden: false, depth: null, colors: true}));
     this.emit('written', index, this.output[index].id, this.output[index].getMessage(), this.output[index]._callback);
 };
 

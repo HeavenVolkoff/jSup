@@ -55,8 +55,6 @@ function MessageReader(){
 MessageReader.prototype._transform = function transform(chunk, encoding, done){
 	var self = this;
 
-	console.log(chunk.toString('hex'));
-
 	if(chunk.length > 3) { //check if chunk size is bigger than a header
 		async.whilst(
 			function () {
@@ -336,7 +334,7 @@ MessageReader.prototype.readList =  function readList(index, tokenIndex){
 
 	//TODO: Make this a async whilst
 	for(var count = 0; count < size; count++){
-		array.push(this.readInternal(index));
+		array.push(this.readInternal(index, true));
 	}
 
 	return array;
@@ -348,8 +346,6 @@ MessageReader.prototype.readList =  function readList(index, tokenIndex){
  * @param index
  */
 MessageReader.prototype.readMessage = function readMessageNode(index){
-	console.log('Received');
-	console.log(this.messages[index][2].toString('hex'));
 	if(this.messages[index][0]){ //check if message is encrypted
 		if(this.key instanceof KeyStream){
 			var realSize = this.messages[index][1] - 4;

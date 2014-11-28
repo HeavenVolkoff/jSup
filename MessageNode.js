@@ -72,7 +72,7 @@ function MessageNode(tag, attributeHash, children, data, id, writerKeyIndex, cal
 			enumerable: true
 		},
 		_writerKeyIndex: {
-			value: !isNaN(writerKeyIndex = Number(writerKeyIndex))? writerKeyIndex : null
+			value: writerKeyIndex !== null && !isNaN(writerKeyIndex = Number(writerKeyIndex))? writerKeyIndex : null
 		},
 		_callback: {
 			value: typeof arguments[arguments.length - 1] === 'function'? arguments[arguments.length - 1] : null

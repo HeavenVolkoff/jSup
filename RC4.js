@@ -25,15 +25,6 @@ function RC4(key, drop){
 	}
 
 	this.cipher(range(0, drop), 0, drop);
-
-	Object.defineProperties(this, {
-		'key': {
-			value: key
-		},
-		'drop': {
-			value: drop
-		}
-	});
 }
 
 module.exports = RC4;

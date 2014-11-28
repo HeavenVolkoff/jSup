@@ -114,6 +114,10 @@ function Sup(number, nickname, messageWriter) {
         _challengeData: {
             writable: true
         },
+        _canSendMsg: {
+            value: false,
+            writable: true
+        },
         _writeMsg:{
           value: function(type, info, key, callback){
               key = typeof key === 'boolean'? key : typeof info === 'boolean'? info : false;
@@ -124,7 +128,7 @@ function Sup(number, nickname, messageWriter) {
                 info.key = self._writerKeyIndex;
               }
 
-              info.id = self._msgId;
+              info.id = info.hasOwnProperty('id')? info.id : self._msgId;
               info.owner = self.phoneNumber;
 
               MessageWriter.prototype.writeNewMsg.call(self._writer, type, info, callback);
@@ -208,6 +212,8 @@ Sup.prototype._onChallenge = function processChallengeData(challenge){
 Sup.prototype._onConnected = function onConnectedSuccessEvent(challenge){
     var self = this;
 
+    self.loginStatus = self.CONNECTED_STATUS;
+
     fs.open(self.CHALLENGE_DATA_FILE_NAME, 'w', function (error, file) {
         if (!error) {
             fs.write(file, challenge, 0, challenge.length, 0);
@@ -215,9 +221,7 @@ Sup.prototype._onConnected = function onConnectedSuccessEvent(challenge){
             self.emit('error', error);
         }
     });
-    self._writeMsg('presence', {name: self.name}, true, function(){
-        self.loginStatus = self.CONNECTED_STATUS;
-    });
+    self._writeMsg('presence', {name: self.name}, true);
 };
 
 Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
@@ -279,6 +283,13 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
             }
 
             break;
+        case 'presence':
+            var from = messageNode.getAttribute('from');
+            if(from.slice(0, from.indexOf('@')) === self.phoneNumber){
+                self._canSendMsg = true;
+            }
+
+            break;
         case 'iq':
             if(messageNode.getAttribute('type') === 'get' && messageNode.getAttribute('xmlns') === 'urn:xmpp:ping'){
                 self._writeMsg('pong', {receivedMsgId: messageNode.getAttribute('id')}, true);
@@ -298,12 +309,13 @@ Sup.prototype._onPushed = function onPushedEvent(index, id){
 
 Sup.prototype._onSend = function onSendEvent(bufferArray){
     var self = this;
-    //console.log('send '+ bufferArray.toString());
 
     async.eachSeries(
         bufferArray,
         function(buff, callback){
             try{
+                console.log('Send\n');
+                console.log(buff[0].toString('hex'));
                 self.write(buff[0]);   //Write Message to Socket
                 self.emit('sent', buff[1]);  //Emit Event Sent Message
 
@@ -361,23 +373,23 @@ Sup.prototype.setupListeners = function setupInternalListeners(){
     var self = this;
 
     self.on('end', function onEnd(){
-        //console.log('connection ended by the partner');
+        console.log('connection ended by the partner');
     });
     self.on('error', function onError(error){
-        //console.log('connection error');
+        console.log('connection error');
         throw error;
     });
     self.on('timeout', function onTimeOut(){
-        //console.log('connection on idle');
+        console.log('connection on idle');
     });
     self.on('drain', function onWriteBufferEmpty(){
-        //console.log('write buffer empty');
+        console.log('write buffer empty');
     });
     self.on('close', function onClose(hadError){
         if(hadError){
-            //console.log('connection closed');
+            console.log('connection closed');
         }else{
-            //console.log('connection closed due to a transmission error.');
+            console.log('connection closed due to a transmission error.');
         }
     });
 
@@ -404,13 +416,19 @@ Sup.prototype.buildIdentity = function buildIdentity(identity, callback){
             crypto.pseudoRandomBytes(16, function(error, buff){
                 if(!error){
                     var count = 0;
-                    var identityBuff = new Buffer(buff.length * 2 + 1);
+                    var identityBuff = new Buffer(buff.length * 3);
                     identityBuff.write('%', count++);
 
                     async.eachSeries(
                         buff,
                         function(data, callback){
-                            identityBuff.writeUInt8(data, count++);
+                            data = data.toString(16);
+                            if(data.length % 2){
+                                data = '0' + data;
+                            }
+
+                            identityBuff.write(data.toLowerCase(), count);
+                            count += 2;
                             identityBuff.write('%', count++);
                             callback();
                         },
@@ -499,8 +517,8 @@ Sup.prototype.createAuthBlob = function createAuthBlob(callback){
                             self.dissectPhone(self.COUNTRIES, self.phoneNumber, callback);
                         },
                         function encodeAuthMessage(phoneInfo, callback) {
-                            var time = parseInt(new Date().getTime() / 100);
-                            var buff = new Buffer('\0\0\0\0' + self.phoneNumber + self._challengeData + time + self.WHATSAPP_USER_AGENT + ' MccMnc/' + strPad(phoneInfo.mcc, 3, '0', 'STR_PAD_LEFT') + phoneInfo.mnc);
+                            var time = parseInt(new Date().getTime() / 1000);
+                            var buff = Buffer.concat([new Buffer('\0\0\0\0' + self.phoneNumber), self._challengeData, new Buffer(time + self.WHATSAPP_USER_AGENT + ' MccMnc/' + strPad(phoneInfo.mcc, 3, '0', 'STR_PAD_LEFT') + phoneInfo.mnc)]);
                             callback(null, buff);
                         }
                     ], callback
@@ -561,7 +579,7 @@ Sup.prototype.login = function loginToWhatsAppServer(password){
 Sup.prototype.sendMessage = function sendTextMessage(to, text, callback){
     var self = this;
 
-    if(self.loginStatus === self.CONNECTED_STATUS) {
+    if(self._canSendMsg) {
         text = basicFunc.parseMsgEmojis(text);
 
         self._writeMsg('text', {text: text, to: to}, true, callback);
@@ -575,7 +593,7 @@ Sup.prototype.sendMessage = function sendTextMessage(to, text, callback){
 Sup.prototype.configureProps = function getServerPropertiesSendClientConfig(){
     var self = this;
 
-    if(self.loginStatus === self.CONNECTED_STATUS) {
+    if(self._canSendMsg) {
         self._writeMsg('props', true);
         self.dissectPhone(self.COUNTRIES, self.phoneNumber, function(error, phoneInfo){
             if(!error){
@@ -596,4 +614,4 @@ teste.login('eW8hwE74KhuApT3n6VZihPt+oPI=');
 teste.configureProps();
 //teste.sendMessage('5521999667644', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
 //teste.sendMessage('5521999840775', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
-teste.sendMessage('5521991567340', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
+//teste.sendMessage('5521991567340', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
