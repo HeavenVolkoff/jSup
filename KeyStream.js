@@ -15,13 +15,23 @@ var crypto = require('crypto');
  */
 module.exports = KeyStream;
 function KeyStream(key, macKey){
+	macKey = Buffer.isBuffer(macKey)? macKey : typeof macKey === 'number'? macKey.toString(16) : null;
+
+	if(typeof macKey === 'string') {
+		if (macKey.length % 2) {
+			macKey = '0' + macKey;
+		}
+
+		macKey = new Buffer(macKey, 'hex');
+	}
+
     /*global RC4*/
 	Object.defineProperties(this, {
 		rc4: {
 			value: new RC4(key, 768)
 		},
 		macKey: {
-			value: macKey instanceof Buffer? macKey : typeof macKey === 'number'? new Buffer(macKey.toString(16), 'hex') : null
+			value: macKey
 		},
 		seq: {
 			value: 0,

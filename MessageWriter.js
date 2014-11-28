@@ -130,7 +130,7 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
                             attribute = {
                                 id: self.createMsgId('getproperties', info.id),
                                 type: 'get',
-                                xmlns: 'x',
+                                xmlns: 'w',
                                 to: self.WHATSAPP_SERVER
                             };
                             children = [new MessageNode('props', null, null, null, ownerId)];
@@ -148,7 +148,7 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
                                     xmlns: 'urn:xmpp:whatsapp:push',
                                     to: self.WHATSAPP_SERVER
                                 };
-                                children = [new MessageNode('config', {plataform: 'none', lc: info.phoneObj.ISO3166, lg: info.phoneObj.ISO639}, null, null, ownerId)];
+                                children = [new MessageNode('config', {platform: 'none', lc: info.phoneObj.ISO3166, lg: info.phoneObj.ISO639}, null, null, ownerId)];
                                 data = null;
 
                                 messageNode = new MessageNode('iq', attribute, children, data, ownerId, info.key, msgCallback);
@@ -271,7 +271,7 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
                             break;
                         case 'response':
                             if (info.hasOwnProperty('response')) {
-                                attribute = {xmlns: 'urn:ietf:params:xml:ns:xmpp-sasl'};
+                                attribute = null;
                                 children = null;
                                 data = info.response;
 
@@ -571,6 +571,12 @@ MessageWriter.prototype.flushBuffer = function flushBuffer(index, header) {
     var size = this.output[index].length;
     var data = this.output[index].getMessage();
     var key = this.key[this.output[index]._writerKeyIndex];
+
+    console.log('\nSend NODE');
+    console.log(util.inspect(this.output[index], { showHidden: false, depth: null, colors: true }));
+
+    console.log('\nSend BUFF NOT ENCODED WITHOUT HEADER');
+    console.log(data);
 
     if (key) {
         this.output[index].overwrite(key.encodeMessage(data, size, 0, size));

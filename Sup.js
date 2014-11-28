@@ -228,7 +228,7 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
     var self = this;
 
     //console.log(messageNode.nodeString('rx  '));
-    console.log('Received');
+    console.log('\nReceived');
     console.log(util.inspect(messageNode, { showHidden: false, depth: null, colors: true }));
     if(messageNode.attributeHash.hasOwnProperty('id')){
         self._msgId = messageNode.id;
@@ -314,7 +314,7 @@ Sup.prototype._onSend = function onSendEvent(bufferArray){
         bufferArray,
         function(buff, callback){
             try{
-                console.log('Send\n');
+                console.log('\nSend To Server');
                 console.log(buff[0].toString('hex'));
                 self.write(buff[0]);   //Write Message to Socket
                 self.emit('sent', buff[1]);  //Emit Event Sent Message
@@ -338,6 +338,11 @@ Sup.prototype._onSend = function onSendEvent(bufferArray){
 
 Sup.prototype._onWritten = function onWrittenEvent(index, id, buff, callback){
     var self = this;
+
+    console.log('\nSend BUFFER');
+    console.log(index);
+    console.log(id);
+    console.log(buff);
 
     index = self._writingMsg.indexOf(index);
     if(index !== - 1) {
@@ -373,23 +378,23 @@ Sup.prototype.setupListeners = function setupInternalListeners(){
     var self = this;
 
     self.on('end', function onEnd(){
-        console.log('connection ended by the partner');
+        console.log('\nconnection ended by the partner');
     });
     self.on('error', function onError(error){
-        console.log('connection error');
+        console.log('\nconnection error');
         throw error;
     });
     self.on('timeout', function onTimeOut(){
-        console.log('connection on idle');
+        console.log('\nconnection on idle');
     });
     self.on('drain', function onWriteBufferEmpty(){
-        console.log('write buffer empty');
+        console.log('\nwrite buffer empty');
     });
     self.on('close', function onClose(hadError){
         if(hadError){
-            console.log('connection closed');
+            console.log('\nconnection closed');
         }else{
-            console.log('connection closed due to a transmission error.');
+            console.log('\nconnection closed due to a transmission error.');
         }
     });
 
@@ -611,7 +616,7 @@ Sup.prototype.configureProps = function getServerPropertiesSendClientConfig(){
 
 var teste = new Sup('5521989316579', 'Xing Ling Lee');
 teste.login('eW8hwE74KhuApT3n6VZihPt+oPI=');
-teste.configureProps();
+//teste.configureProps();
 //teste.sendMessage('5521999667644', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
 //teste.sendMessage('5521999840775', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
 //teste.sendMessage('5521991567340', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
