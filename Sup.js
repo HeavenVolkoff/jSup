@@ -123,7 +123,6 @@ function Sup(number, nickname, messageWriter) {
               key = typeof key === 'boolean'? key : typeof info === 'boolean'? info : false;
               info = info instanceof Object? info : {};
               callback = typeof arguments[arguments.length - 1] === 'function'? arguments[arguments.length - 1] : null;
-
               if(key){
                 info.key = self._writerKeyIndex;
               }
@@ -595,28 +594,68 @@ Sup.prototype.sendMessage = function sendTextMessage(to, text, callback){
     }
 };
 
-Sup.prototype.configureProps = function getServerPropertiesSendClientConfig(){
+Sup.prototype.configureProps = function getServerPropertiesSendClientConfig(callback){
     var self = this;
 
     if(self._canSendMsg) {
         self._writeMsg('props', true);
         self.dissectPhone(self.COUNTRIES, self.phoneNumber, function(error, phoneInfo){
             if(!error){
-                self._writeMsg('config', {phoneObj: phoneInfo}, true);
+                self._writeMsg('config', {phoneObj: phoneInfo}, true, callback);
             }else {
                 self.emit('error', error);
             }
         });
     }else{
         setImmediate(function () {
-            self.configureProps();
+            self.configureProps(callback);
+        });
+    }
+};
+
+Sup.prototype.syncContacts = function syncContacts(numbers, options, callback){
+    numbers = Array.isArray(numbers)? numbers : typeof numbers === 'string'? [numbers] : typeof numbers === 'number'? [numbers.toString()] : null;
+    options = options || {};
+    options.numbers = numbers;
+    options.mode    = options.hasOwnProperty('mode')?    options.mode : 'full';
+    options.context = options.hasOwnProperty('context')? options.context : 'registration';
+    options.index   = options.hasOwnProperty('index')?   options.index : '0';
+    options.last    = options.hasOwnProperty('last')?    options.last : 'true';
+    callback = typeof arguments[arguments.length - 1] === 'function'? arguments[arguments.length - 1] : null;
+
+    var self = this;
+
+    if(self._canSendMsg) {
+        self._writeMsg('sync', options, true, callback);
+    }else{
+        setImmediate(function(){
+            self.syncContacts(numbers, options, callback);
+        });
+    }
+};
+
+Sup.prototype.userSubscription = function userSubscription(to, mode, callback){
+    to = typeof to === 'string'? to : typeof to === 'number'? to.toString() : null;
+    mode = mode === 'subscribe' || mode === 'unsubscribe'? mode : 'subscribe';
+
+    var self = this;
+
+    if(self._canSendMsg) {
+        self._writeMsg(mode, {to: to}, true, callback);
+    }else{
+        setImmediate(function(){
+            self.userSubscription(to, mode, callback);
         });
     }
 };
 
 var teste = new Sup('5521989316579', 'Xing Ling Lee');
 teste.login('eW8hwE74KhuApT3n6VZihPt+oPI=');
-//teste.configureProps();
+teste.configureProps(function(){
+    teste.syncContacts('5521991567340', function(){
+        teste.userSubscription('5521991567340');
+    });
+});
 //teste.sendMessage('5521999667644', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
 //teste.sendMessage('5521999840775', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
 //teste.sendMessage('5521991567340', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');

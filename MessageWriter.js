@@ -159,6 +159,86 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
                             }
 
                             break;
+                        case 'sync':
+                            info.hasOwnProperties(['numbers', 'mode', 'context', 'index', 'last'],
+                                    function (unknown){
+                                        if(!unknown){
+                                            var users = [];
+
+                                            async.each(
+                                                info.numbers,
+                                                function(number, callback){
+                                                    users.push(new MessageNode('user', null, null, number.slice(0, 1) !== '+'? '+' + number : number, ownerId));
+                                                    callback();
+                                                },
+                                                function(){
+                                                    attribute = {
+                                                        to: self.genJID(info.owner),
+                                                        type: 'get',
+                                                        id: self.createMsgId('sendsync_', info.id),
+                                                        xmlns: 'urn:xmpp:whatsapp:sync'
+                                                    };
+                                                    children = [
+                                                        new MessageNode(
+                                                            'sync',
+                                                            {
+                                                                mode: info.mode,
+                                                                context: info.context,
+                                                                sid: ((Math.floor((new Date().getTime() / 1000)) + 11644477200) * 10000000).toString(),
+                                                                index: info.index,
+                                                                last: info.last
+                                                            },
+                                                            users,
+                                                            null,
+                                                            ownerId
+                                                        )
+                                                    ];
+                                                    data = null;
+
+                                                    messageNode = new MessageNode('iq', attribute, children, data, ownerId, info.key, msgCallback);
+                                                    self.pushMsgNode(messageNode);
+                                                }
+                                            );
+
+                                        }else{
+                                            self.emit('error', new Error('Missing property '+ unknown + ' in object info: ' + util.inspect(info, {showHidden: false, depth: null, colors: true}), 'MISSING_PROP'));
+                                        }
+                                    }
+                                );
+
+                            break;
+                        case 'subscribe':
+                            if(info.hasOwnProperty('to')) {
+                                attribute = {
+                                    type: 'subscribe',
+                                    to: self.genJID(info.to)
+                                };
+                                children = null;
+                                data = null;
+
+                                messageNode = new MessageNode('presence', attribute, children, data, ownerId, info.key, msgCallback);
+                                self.pushMsgNode(messageNode);
+                            }else{
+                                self.emit('error', new Error('Missing property to in object info: ' + util.inspect(info, {showHidden: false, depth: null, colors: true}), 'MISSING_PROP'));
+                            }
+
+                            break;
+                        case 'unsubscribe':
+                            if(info.hasOwnProperty('to')) {
+                                attribute = {
+                                    type: 'unsubscribe',
+                                    to: self.genJID(info.to)
+                                };
+                                children = null;
+                                data = null;
+
+                                messageNode = new MessageNode('presence', attribute, children, data, ownerId, info.key, msgCallback);
+                                self.pushMsgNode(messageNode);
+                            }else{
+                                self.emit('error', new Error('Missing property to in object info: ' + util.inspect(info, {showHidden: false, depth: null, colors: true}), 'MISSING_PROP'));
+                            }
+
+                            break;
                         case 'pong':
                             if(info.hasOwnProperty('receivedMsgId')){
                                 attribute = {
