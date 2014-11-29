@@ -424,24 +424,20 @@ module.exports = TokenMap;
 		 * @returns {[boolean, string]}
 		 */
 		'getToken': function getToken(tokenIndex, subDict){
-			var tokenMap = [];
-			var token;
+			var tokenMap;
 
 			if(!subDict && tokenIndex >= 236 && tokenIndex < (236 + this.secondaryStrings.length)){
-				tokenMap = this.secondaryStrings;
 				subDict = true;
-			}else{
-				tokenMap = this.primaryStrings;
-				subDict = false;
 			}
 
-			if(tokenIndex >= 0 && tokenIndex <= tokenMap.length){
-				token = tokenMap[tokenIndex % tokenMap.length];
+			if(subDict){
+				tokenMap = this.secondaryStrings;
+			}else{
+				tokenMap = this.primaryStrings;
+			}
 
-				if(token === ''){
-					console.log('Invalid token/length'); //This is not a Error just a Warning
-				}
-				return [subDict, token];
+			if(tokenIndex >= 0 && tokenIndex < tokenMap.length){
+				return [subDict, tokenMap[tokenIndex]];
 			}
 
 			return [subDict, null];

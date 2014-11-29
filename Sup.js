@@ -220,7 +220,9 @@ Sup.prototype._onConnected = function onConnectedSuccessEvent(challenge){
             self.emit('error', error);
         }
     });
-    self._writeMsg('presence', {name: self.name}, true);
+    self._writeMsg('presence', {name: self.name}, true, function(){
+        self._canSendMsg = true;
+    });
 };
 
 Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
@@ -279,14 +281,19 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
                     });
 
                     break;
+                case 'media':
+                    if(self._autoReceipt){
+                        self._writeMsg('receipt', {type: self._autoReceipt, to: messageNode.getAttribute('from'), receivedMsgId: messageNode.getAttribute('id')}, true);
+                    }
             }
 
             break;
         case 'presence':
             var from = messageNode.getAttribute('from');
-            if(from.slice(0, from.indexOf('@')) === self.phoneNumber){
-                self._canSendMsg = true;
-            }
+
+            break;
+        case 'ib':
+            self.emit('ib');
 
             break;
         case 'iq':
@@ -647,6 +654,10 @@ Sup.prototype.userSubscription = function userSubscription(to, mode, callback){
             self.userSubscription(to, mode, callback);
         });
     }
+};
+
+Sup.prototype.waitFor = function waitFor(tag, callback){
+    this.once(tag, callback);
 };
 
 var teste = new Sup('5521989316579', 'Xing Ling Lee');

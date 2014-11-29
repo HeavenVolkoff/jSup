@@ -126,14 +126,12 @@ MessageReader.prototype.clearPos = function clearInternalArrayPosition(index){
  * Return 1 byte from message Internal Buffer and remove it
  *
  * @param index
- * @param [offset = 0]
  * @returns {Number}
  */
-MessageReader.prototype.readInt8 = function readInt8FromInternalBuffer(index, offset){
-	offset = isNaN(Number(offset))? 0 : offset;
-	var int = this.messages[index][2].readUInt8(offset);
+MessageReader.prototype.readInt8 = function readInt8FromInternalBuffer(index){
+	var int = this.messages[index][2][0];
 
-	this.messages[index][2] = this.messages[index][2].slice(offset + 1);
+	this.messages[index][2] = this.messages[index][2].slice(1);
 
 	return int;
 };
@@ -142,14 +140,13 @@ MessageReader.prototype.readInt8 = function readInt8FromInternalBuffer(index, of
  * Return 2 byte from message Internal Buffer and remove it
  *
  * @param index
- * @param [offset = 0]
  * @returns {Number}
  */
-MessageReader.prototype.readInt16 = function readInt16FromInternalBuffer(index, offset){
-	offset = isNaN(Number(offset))? 0 : offset;
-	var int = this.messages[index][2].readUInt16BE(offset);
+MessageReader.prototype.readInt16 = function readInt16FromInternalBuffer(index){
+	var int = basicFunc.shiftLeft(this.messages[index][2][0], 8);
+		int |= this.messages[index][2][1];
 
-	this.messages[index][2] = this.messages[index][2].slice(offset + 2);
+	this.messages[index][2] = this.messages[index][2].slice(2);
 
 	return int;
 };
@@ -158,15 +155,14 @@ MessageReader.prototype.readInt16 = function readInt16FromInternalBuffer(index, 
  * Return 3 byte from message Internal Buffer and remove it
  *
  * @param index
- * @param [offset = 0]
  * @returns {Number}
  */
-MessageReader.prototype.readInt24 = function readInt24FromInternalBuffer(index, offset){
-	offset = isNaN(Number(offset))? 0 : offset;
-	var int = this.messages[index][2].readUInt16BE(offset);
-		int = basicFunc.shiftLeft(int, 16) | this.messages[index][2][offset + 2];
+MessageReader.prototype.readInt24 = function readInt24FromInternalBuffer(index){
+	var int = basicFunc.shiftLeft(this.messages[index][2][0], 16);
+		int |= basicFunc.shiftLeft(this.messages[index][2][1], 8);
+		int |= this.messages[index][2][2];
 
-	this.messages[index][2] = this.messages[index][2].slice(offset + 3);
+	this.messages[index][2] = this.messages[index][2].slice(3);
 
 	return int;
 };
@@ -188,13 +184,13 @@ MessageReader.prototype.getToken =  function getToken(index, tokenIndex){
 	subDict = tokenArray[0];
 	token = tokenArray[1];
 
-	if(!token){
+	if(!token || token === ''){
 		tokenIndex = this.readInt8(index);
 		tokenArray = tokenMap.getToken(tokenIndex, subDict);
 
 		token = tokenArray[1];
 
-		if(!token){
+		if(!token || token === ''){
 			this.emit('error', new Error('Invalid token index' + tokenIndex, 'TOKEN_INDEX'));
 			return null;
 		}
@@ -352,7 +348,7 @@ MessageReader.prototype.readMessage = function readMessageNode(index){
 			this.messages[index][2] = this.key.decodeMessage(this.messages[index][2], realSize, 0, realSize); //decrypt message
 
 		}else{
-			this.emit('error', new Error('Encountered encrypted message, missing key', 'MISSING_KEY'));
+			this.emit('error', new Error('Encountered encrypted message, missing decryption key', 'MISSING_KEY'));
 		}
 	}
 
@@ -397,7 +393,7 @@ MessageReader.prototype.readInternal = function readInternalAttributesFromMessag
 		tag = this.readString(index, token);
 		attributesHash = this.readAttributes(index, size);
 
-		if(size % 2 !== 0){
+		if(size % 2){
 			messageNode = new MessageNode(tag, attributesHash, null, null);
 		}else{
 			token = this.readInt8(index);
