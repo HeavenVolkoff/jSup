@@ -534,70 +534,80 @@ Sup.prototype.codeRequest = function codeRequest(method){
     method = method === 'sms' || method === 'voice'? method : 'sms';
     var self = this;
 
-    self.dissectPhone(self.COUNTRIES, self.phoneNumber,
-        function(error, phoneInfo) {
-            if(!error){
-                var host = 'https://' + self.WHATSAPP_REQUEST_HOST + '?';
-                var countryCode = phoneInfo.ISO3166;
-                var language = phoneInfo.ISO639;
-                var token = basicFunc.genReqToken(phoneInfo.phone);
+    self.buildIdentity(self.phoneNumber,
+        function(error, data) {
+            if (!error) {
+                self.identity = data;
 
-                if(!countryCode || countryCode === ''){
-                    countryCode = 'US';
-                }
+                self.dissectPhone(self.COUNTRIES, self.phoneNumber,
+                    function (error, phoneInfo) {
+                        if (!error) {
+                            var host = 'https://' + self.WHATSAPP_REQUEST_HOST + '?';
+                            var countryCode = phoneInfo.ISO3166;
+                            var language = phoneInfo.ISO639;
+                            var token = basicFunc.genReqToken(phoneInfo.phone);
 
-                if(!language || language === ''){
-                    language = 'en';
-                }
-
-                if(phoneInfo.cc === '77' || phoneInfo.cc === '79'){
-                    phoneInfo.cc = '7';
-                }
-
-                host += 'in='       + phoneInfo.phone + '&' +
-                'cc='       + phoneInfo.cc    + '&' +
-                'id='       + self.identity   + '&' +
-                'lg='       + language        + '&' +
-                'lc='       + countryCode     + '&' +
-                'mcc='      + phoneInfo.mcc   + '&' +
-                'mnc='      + phoneInfo.mnc   + '&' +
-                'sim_mcc='  + phoneInfo.mcc   + '&' +
-                'sim_mnc='  + phoneInfo.mnc   + '&' +
-                'method='   + method          + '&' +
-                'token='    + encodeURIComponent(token) + '&' +
-                'network_radio_type='   +  1;
-
-                host = url.parse(host);
-
-                var options = {
-                    hostname: host.host,
-                    path: host.path,
-                    headers: {
-                        'User-Agent': self.WHATSAPP_USER_AGENT,
-                        Accept: 'text/json'
-                    },
-                    rejectUnauthorized: false
-                };
-
-                options.agent = new https.Agent(options);
-
-                https.get(options,
-                    function(response){
-                        console.log(response);
-                        response.on('data',
-                            function(data){
-                                self.emit('codeRequest', JSON.parse(data));
+                            if (!countryCode || countryCode === '') {
+                                countryCode = 'US';
                             }
-                        );
-                    }
-                ).on('error', function(e){
-                        if(e){
-                            console.log(e);
-                            self.emit('error', e);
+
+                            if (!language || language === '') {
+                                language = 'en';
+                            }
+
+                            if (phoneInfo.cc === '77' || phoneInfo.cc === '79') {
+                                phoneInfo.cc = '7';
+                            }
+
+                            host += 'in=' + phoneInfo.phone + '&' +
+                            'cc=' + phoneInfo.cc + '&' +
+                            'id=' + self.identity + '&' +
+                            'lg=' + language + '&' +
+                            'lc=' + countryCode + '&' +
+                            'mcc=' + phoneInfo.mcc + '&' +
+                            'mnc=' + phoneInfo.mnc + '&' +
+                            'sim_mcc=' + phoneInfo.mcc + '&' +
+                            'sim_mnc=' + phoneInfo.mnc + '&' +
+                            'method=' + method + '&' +
+                            'token=' + encodeURIComponent(token) + '&' +
+                            'network_radio_type=' + 1;
+
+                            host = url.parse(host);
+
+                            var options = {
+                                hostname: host.host,
+                                path: host.path,
+                                headers: {
+                                    'User-Agent': self.WHATSAPP_USER_AGENT,
+                                    Accept: 'text/json'
+                                },
+                                rejectUnauthorized: false
+                            };
+
+                            options.agent = new https.Agent(options);
+
+                            https.get(options,
+                                function (response) {
+                                    console.log(response);
+                                    response.on('data',
+                                        function (data) {
+                                            self.emit('codeRequest', JSON.parse(data));
+                                        }
+                                    );
+                                }
+                            ).on('error', function (e) {
+                                    if (e) {
+                                        console.log(e);
+                                        self.emit('error', e);
+                                    }
+                                });
+                        } else {
+                            self.emit(error);
                         }
-                    });
-            }else{
-                self.emit(error);
+                    }
+                );
+            } else {
+                self.emit('error', error);
             }
         }
     );
