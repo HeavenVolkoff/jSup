@@ -626,6 +626,8 @@ Sup.prototype.checkCredentials = function checkCredentials(){
                         'lc=' + countryCode     + '&' +
                         'network_radio_type='   +  1;
 
+                console.log(host);
+
                 http.request(
                     {
                         host: host,
@@ -675,8 +677,9 @@ Sup.prototype.login = function loginToWhatsAppServer(password){
             }
         );
     }else{
+        console.log('teste');
         self.checkCredentials();
-        self.on('newCredentials', function(credentials){console.log(credentials);});
+        self.once('newCredentials', function(credentials){console.log(credentials);});
     }
 };
 
