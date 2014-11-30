@@ -590,7 +590,8 @@ Sup.prototype.doLogin = function doLogin(){
     });
 };
 
-Sup.prototype.checkCredentials = function checkCredentials(){
+Sup.prototype.codeRequest = function codeRequest(method){
+    method = method === 'sms' || method === 'voice'? method : 'sms';
     var self = this;
 
     self.dissectPhone(self.COUNTRIES, self.phoneNumber,
@@ -599,6 +600,7 @@ Sup.prototype.checkCredentials = function checkCredentials(){
                 var host = 'https://' + self.WHATSAPP_CHECK_HOST + '?';
                 var countryCode = phoneInfo.ISO3166;
                 var language = phoneInfo.ISO639;
+                var token = basicFunc.genReqToken(phoneInfo.phone);
 
                 if(!countryCode || countryCode === ''){
                     countryCode = 'US';
@@ -612,11 +614,17 @@ Sup.prototype.checkCredentials = function checkCredentials(){
                     phoneInfo.cc = '7';
                 }
 
-                host += 'cc=' + phoneInfo.cc    + '&' +
-                        'in=' + phoneInfo.phone + '&' +
-                        'id=' + self.identity   + '&' +
-                        'lg=' + language        + '&' +
-                        'lc=' + countryCode     + '&' +
+                host += 'in='       + phoneInfo.phone + '&' +
+                        'cc='       + phoneInfo.cc    + '&' +
+                        'id='       + self.identity   + '&' +
+                        'lg='       + language        + '&' +
+                        'lc='       + countryCode     + '&' +
+                        'mcc='      + phoneInfo.mcc   + '&' +
+                        'mnc='      + phoneInfo.mnc   + '&' +
+                        'sim_mcc='  + phoneInfo.mcc   + '&' +
+                        'sim_mnc='  + phoneInfo.mnc   + '&' +
+                        'method='   + method          + '&' +
+                        'token='    + encodeURIComponent(token) + '&' +
                         'network_radio_type='   +  1;
 
                 console.log(host);
@@ -677,7 +685,7 @@ Sup.prototype.login = function loginToWhatsAppServer(password){
                 }else{
                     console.log('teste');
                     self.once('newCredentials', function(credentials){console.log(credentials);});
-                    self.checkCredentials();
+                    self.codeRequest('sms');
                 }
             } else {
                 self.emit('error', error);
