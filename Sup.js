@@ -419,6 +419,30 @@ Sup.prototype.setupListeners = function setupInternalListeners(){
     self._writer.on('pushed',       function (index, id)                    {  self._onPushed   (index, id);                    });     //Writer Pushed Event Listener that add the pushed message index into internal array
     self._writer.on('written',      function (index, id, buffer, callback)  {  self._onWritten  (index, id, buffer, callback);  });     //Writer Written Event Listener that add the written message to outgoing queue
     self._reader.on('decoded',      function (index, messageNode)           {  self.onDecode    (index, messageNode);           });     //Reader decoded Event Listener that process every message received
+    self._writer.on('error', function (error){                                                                                          //Bug logging
+        if (error){
+            var bug = new Buffer(error.toString());
+            fs.open('Errors.log', 'w+', function(error, file){
+                if (!error){
+                    fs.write(file, bug, 0, bug.length, 0);
+                }else{
+                    console.log('Error saving fail (file access deny).');
+                }
+            })
+        }
+    });
+    self._reader.on('error', function (error){                                                                                          //Bug logging
+        if (error) {
+            var bug = new Buffer(error.toString());
+            fs.open('Errors.log', 'w+', function (error, file) {
+                if (!error) {
+                    fs.write(file, bug, 0, bug.length, 0);
+                } else {
+                    console.log('Error saving fail (file access deny).');
+                }
+            })
+        }
+    });
 };
 
 Sup.prototype.disconnect = function endSocketConnection(){
