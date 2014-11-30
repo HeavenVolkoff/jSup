@@ -16,6 +16,7 @@ var MessageWriter = require('./MessageWriter');
 var Socket = require('net').Socket;
 var util = require('util');
 
+module.exports = Sup;
 
 util.inherits(Sup, Socket);
 function Sup(number, nickname, messageWriter) {
@@ -119,20 +120,27 @@ function Sup(number, nickname, messageWriter) {
             writable: true
         },
         _writeMsg:{
-          value: function(type, info, key, callback){
-              key = typeof key === 'boolean'? key : typeof info === 'boolean'? info : false;
-              info = info instanceof Object? info : {};
-              callback = typeof arguments[arguments.length - 1] === 'function'? arguments[arguments.length - 1] : null;
-              if(key){
-                info.key = self._writerKeyIndex;
-              }
+            value:
+                /**
+                 * @param type
+                 * @param [info = {}]
+                 * @param [key = false]
+                 * @param [callback = null]
+                 */
+                function(type, info, key, callback){
+                    key = typeof key === 'boolean'? key : typeof info === 'boolean'? info : false;
+                    info = info instanceof Object? info : {};
+                    callback = typeof arguments[arguments.length - 1] === 'function'? arguments[arguments.length - 1] : null;
+                    if(key){
+                      info.key = self._writerKeyIndex;
+                    }
 
-              info.id = info.hasOwnProperty('id')? info.id : self._msgId;
-              info.owner = self.phoneNumber;
+                    info.id = info.hasOwnProperty('id')? info.id : self._msgId;
+                    info.owner = self.phoneNumber;
 
-              MessageWriter.prototype.writeNewMsg.call(self._writer, type, info, callback);
-          }
-        },
+                    MessageWriter.prototype.writeNewMsg.call(self._writer, type, info, callback);
+                }
+            },
         _writingMsg: {
             get: function(){
                 return writingMsg;
@@ -229,8 +237,8 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
     var self = this;
 
     //console.log(messageNode.nodeString('rx  '));
-    console.log('\nReceived');
-    console.log(util.inspect(messageNode, { showHidden: false, depth: null, colors: true }));
+    //console.log('\nReceived');
+    //console.log(util.inspect(messageNode, { showHidden: false, depth: null, colors: true }));
     if(messageNode.attributeHash.hasOwnProperty('id')){
         self._msgId = messageNode.id;
     }
@@ -249,25 +257,22 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
                 case 'text':
                     messageNode.getChild('body', function(body){
                         if(body){
-                            if(self._autoReceipt){
-                                self._writeMsg('receipt', {type: self._autoReceipt, to: messageNode.getAttribute('from'), receivedMsgId: messageNode.getAttribute('id')}, true);
-                            }
+                            self._writeMsg('receipt', {type: self._autoReceipt, to: messageNode.getAttribute('from'), receivedMsgId: messageNode.getAttribute('id')}, true);
 
                             var author = messageNode.getAttribute('participant');
 
-                            if(author === ''){
+                            if(!author){
+                                var from = messageNode.getAttribute('from');
                                 self.emit('message',
-                                    self.phoneNumber,
-                                    messageNode.getAttribute('from'),
+                                    from.slice(0, from.indexOf('@')),
                                     messageNode.getAttribute('id'),
                                     messageNode.getAttribute('type'),
                                     messageNode.getAttribute('t'),
                                     messageNode.getAttribute('notify'),
-                                    body.getData('utf8')
+                                    body.data.toString('utf8')
                                 );
                             }else{
                                 self.emit('groupMessage',
-                                    self.phoneNumber,
                                     messageNode.getAttribute('from'),
                                     author,
                                     messageNode.getAttribute('id'),
@@ -282,9 +287,7 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
 
                     break;
                 case 'media':
-                    if(self._autoReceipt){
-                        self._writeMsg('receipt', {type: self._autoReceipt, to: messageNode.getAttribute('from'), receivedMsgId: messageNode.getAttribute('id')}, true);
-                    }
+                    self._writeMsg('receipt', {type: self._autoReceipt, to: messageNode.getAttribute('from'), receivedMsgId: messageNode.getAttribute('id')}, true);
             }
 
             break;
@@ -300,6 +303,10 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
             if(messageNode.getAttribute('type') === 'get' && messageNode.getAttribute('xmlns') === 'urn:xmpp:ping'){
                 self._writeMsg('pong', {receivedMsgId: messageNode.getAttribute('id')}, true);
             }
+
+            break;
+        case 'receipt':
+            self._writeMsg('ack', {to: messageNode.getAttribute('from'), receivedMsgId: messageNode.getAttribute('id'), type: self._autoReceipt}, true);
 
             break;
         default:
@@ -320,8 +327,8 @@ Sup.prototype._onSend = function onSendEvent(bufferArray){
         bufferArray,
         function(buff, callback){
             try{
-                console.log('\nSend To Server');
-                console.log(buff[0].toString('hex'));
+                //console.log('\nSend To Server');
+                //console.log(buff[0].toString('hex'));
                 self.write(buff[0]);   //Write Message to Socket
                 self.emit('sent', buff[1]);  //Emit Event Sent Message
 
@@ -345,10 +352,10 @@ Sup.prototype._onSend = function onSendEvent(bufferArray){
 Sup.prototype._onWritten = function onWrittenEvent(index, id, buff, callback){
     var self = this;
 
-    console.log('\nSend BUFFER');
-    console.log(index);
-    console.log(id);
-    console.log(buff);
+    //console.log('\nSend BUFFER');
+    //console.log(index);
+    //console.log(id);
+    //console.log(buff);
 
     index = self._writingMsg.indexOf(index);
     if(index !== - 1) {
@@ -391,7 +398,7 @@ Sup.prototype.setupListeners = function setupInternalListeners(){
         throw error;
     });
     self.on('timeout', function onTimeOut(){
-        console.log('\nconnection on idle');
+        //console.log('\nconnection on idle');
     });
     self.on('drain', function onWriteBufferEmpty(){
         console.log('\nwrite buffer empty');
@@ -644,6 +651,7 @@ Sup.prototype.syncContacts = function syncContacts(numbers, options, callback){
 Sup.prototype.userSubscription = function userSubscription(to, mode, callback){
     to = typeof to === 'string'? to : typeof to === 'number'? to.toString() : null;
     mode = mode === 'subscribe' || mode === 'unsubscribe'? mode : 'subscribe';
+    callback = typeof arguments[arguments.length - 1] === 'function'? arguments[arguments.length - 1] : null;
 
     var self = this;
 
@@ -664,9 +672,19 @@ var teste = new Sup('5521989316579', 'Xing Ling Lee');
 teste.login('eW8hwE74KhuApT3n6VZihPt+oPI=');
 teste.configureProps(function(){
     teste.syncContacts('5521991567340', function(){
-        teste.userSubscription('5521991567340');
+        teste.userSubscription('5521991567340', function(){
+            teste.sendMessage('5521991567340', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
+            teste.sendMessage('5521999667644', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
+            teste.sendMessage('5521999840775', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
+        });
     });
 });
-//teste.sendMessage('5521999667644', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
-//teste.sendMessage('5521999840775', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
-//teste.sendMessage('5521991567340', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
+teste.on('message',
+    function(from, id, type, time, notify, text){
+        if(type === 'text') {
+            console.log('\nMensagem De ' + from + '(' + notify + ')');
+            console.log('Texto: '+text);
+            console.log('Em: '+new Date(time * 1000));
+        }
+    }
+);

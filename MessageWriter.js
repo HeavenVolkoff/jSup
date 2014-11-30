@@ -89,6 +89,29 @@ MessageWriter.prototype.writeNewMsg = function pushNewMessageNodeToOutputArray(t
 
                 if (info.hasOwnProperty('key')) {
                     switch (type) {
+                        case 'ack':
+                            info.hasOwnProperties(['to', 'type', 'receivedMsgId'],
+                                    function(unknown){
+                                        if(!unknown){
+                                            attribute = {
+                                                to: info.to,
+                                                id: info.receivedMsgId,
+                                                type: info.type,
+                                                t: Math.floor(new Date().getTime() / 1000).toString()
+                                            };
+                                            children = null;
+                                            data = null;
+
+                                            messageNode = new MessageNode('ack', attribute, children, data, ownerId, info.key, msgCallback);
+                                            self.pushMsgNode(messageNode);
+
+                                        }else{
+                                            self.emit('error', new Error('Missing property '+ unknown + ' in object info: ' + util.inspect(info, {showHidden: false, depth: null, colors: true}), 'MISSING_PROP'));
+                                        }
+                                    }
+                                );
+
+                            break;
                         case 'presence':
                             if  (info.hasOwnProperty('name')){
                                 attribute = {name: info.name};
@@ -652,11 +675,11 @@ MessageWriter.prototype.flushBuffer = function flushBuffer(index, header) {
     var data = this.output[index].getMessage();
     var key = this.key[this.output[index]._writerKeyIndex];
 
-    console.log('\nSend NODE');
-    console.log(util.inspect(this.output[index], { showHidden: false, depth: null, colors: true }));
+    //console.log('\nSend NODE');
+    //console.log(util.inspect(this.output[index], { showHidden: false, depth: null, colors: true }));
 
-    console.log('\nSend BUFF NOT ENCODED WITHOUT HEADER');
-    console.log(data.toString('hex'));
+    //console.log('\nSend BUFF NOT ENCODED WITHOUT HEADER');
+    //console.log(data.toString('hex'));
 
     if (key) {
         this.output[index].overwrite(key.encodeMessage(data, size, 0, size));

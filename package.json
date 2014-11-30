@@ -1,6 +1,6 @@
 {
   "name": "jSup",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Whatsapp javascript node.js API",
   "dependencies": {
     "async": "^0.9.0",
@@ -8,5 +8,20 @@
     "fluent-ffmpeg": "^2.0.0-rc2",
     "gm": "^1.16.0",
     "jssha": "^1.5.0"
-  }
+  },
+  "main": "Sup.js",
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://vasvas10@bitbucket.org/RaphaelAlmeidaUFRJ/jsup-node.js.git"
+  },
+  "keywords": [
+    "WhatsApp",
+    "jSup"
+  ],
+  "author": "Heaven Volkoff",
+  "license": "MIT"
 }
