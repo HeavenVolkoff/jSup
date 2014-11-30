@@ -11,7 +11,7 @@ var crypto = require('crypto');
 var EventEmitter = require('events').EventEmitter;
 var fs = require('fs');
 var generateKeys = require('./KeyStream').generateKeys;
-var http = require('http');
+var https = require('https');
 var KeyStream = require('./KeyStream');
 var MessageReader = require('./MessageReader');
 var MessageWriter = require('./MessageWriter');
@@ -530,6 +530,145 @@ Sup.prototype.dissectPhone = function dissectCountryCodeFromPhoneNumber(path, ph
     });
 };
 
+Sup.prototype.codeRequest = function codeRequest(method){
+    method = method === 'sms' || method === 'voice'? method : 'sms';
+    var self = this;
+
+    self.dissectPhone(self.COUNTRIES, self.phoneNumber,
+        function(error, phoneInfo) {
+            if(!error){
+                var host = 'https://' + self.WHATSAPP_REQUEST_HOST + '?';
+                var countryCode = phoneInfo.ISO3166;
+                var language = phoneInfo.ISO639;
+                var token = basicFunc.genReqToken(phoneInfo.phone);
+
+                if(!countryCode || countryCode === ''){
+                    countryCode = 'US';
+                }
+
+                if(!language || language === ''){
+                    language = 'en';
+                }
+
+                if(phoneInfo.cc === '77' || phoneInfo.cc === '79'){
+                    phoneInfo.cc = '7';
+                }
+
+                host += 'in='       + phoneInfo.phone + '&' +
+                'cc='       + phoneInfo.cc    + '&' +
+                'id='       + self.identity   + '&' +
+                'lg='       + language        + '&' +
+                'lc='       + countryCode     + '&' +
+                'mcc='      + phoneInfo.mcc   + '&' +
+                'mnc='      + phoneInfo.mnc   + '&' +
+                'sim_mcc='  + phoneInfo.mcc   + '&' +
+                'sim_mnc='  + phoneInfo.mnc   + '&' +
+                'method='   + method          + '&' +
+                'token='    + encodeURIComponent(token) + '&' +
+                'network_radio_type='   +  1;
+
+                host = url.parse(host);
+
+                var options = {
+                    hostname: host.host,
+                    path: host.path,
+                    headers: {
+                        'User-Agent': self.WHATSAPP_USER_AGENT,
+                        Accept: 'text/json'
+                    },
+                    rejectUnauthorized: false
+                };
+
+                options.agent = new https.Agent(options);
+
+                https.get(options,
+                    function(response){
+                        console.log(response);
+                        response.on('data',
+                            function(data){
+                                self.emit('codeRequest', JSON.parse(data));
+                            }
+                        );
+                    }
+                ).on('error', function(e){
+                        if(e){
+                            console.log(e);
+                            self.emit('error', e);
+                        }
+                    });
+            }else{
+                self.emit(error);
+            }
+        }
+    );
+};
+
+Sup.prototype.codeRegister = function codeRegister(code){
+    var self = this;
+
+    self.dissectPhone(self.COUNTRIES, self.phoneNumber,
+        function(error, phoneInfo) {
+            if(!error){
+                var host = 'https://' + self.WHATSAPP_REGISTER_HOST + '?';
+                var countryCode = phoneInfo.ISO3166;
+                var language = phoneInfo.ISO639;
+
+                if(!countryCode || countryCode === ''){
+                    countryCode = 'US';
+                }
+
+                if(!language || language === ''){
+                    language = 'en';
+                }
+
+                if(phoneInfo.cc === '77' || phoneInfo.cc === '79'){
+                    phoneInfo.cc = '7';
+                }
+
+                host += 'cc='       + phoneInfo.cc    + '&' +
+                'in='       + phoneInfo.phone + '&' +
+                'id='       + self.identity   + '&' +
+                'code='     + code            + '&' +
+                'lg='       + language        + '&' +
+                'lc='       + countryCode     + '&' +
+                'network_radio_type='   +  1;
+
+                host = url.parse(host);
+
+                var options = {
+                    hostname: host.host,
+                    path: host.path,
+                    headers: {
+                        'User-Agent': self.WHATSAPP_USER_AGENT,
+                        Accept: 'text/json'
+                    },
+                    rejectUnauthorized: false
+                };
+
+                options.agent = new https.Agent(options);
+
+                https.get(options,
+                    function(response){
+                        console.log(response);
+                        response.on('data',
+                            function(data){
+                                self.emit('codeRegister', JSON.parse(data));
+                            }
+                        );
+                    }
+                ).on('error', function(e){
+                        if(e){
+                            console.log(e);
+                            self.emit('error', e);
+                        }
+                    });
+            }else{
+                self.emit(error);
+            }
+        }
+    );
+};
+
 Sup.prototype.createAuthBlob = function createAuthBlob(callback){
     var strPad = require('./php.js').strPad;
     var self = this;
@@ -590,73 +729,7 @@ Sup.prototype.doLogin = function doLogin(){
     });
 };
 
-Sup.prototype.codeRequest = function codeRequest(method){
-    method = method === 'sms' || method === 'voice'? method : 'sms';
-    var self = this;
-
-    self.dissectPhone(self.COUNTRIES, self.phoneNumber,
-        function(error, phoneInfo) {
-            if(!error){
-                var host = 'https://' + self.WHATSAPP_REQUEST_HOST + '?';
-                var countryCode = phoneInfo.ISO3166;
-                var language = phoneInfo.ISO639;
-                var token = basicFunc.genReqToken(phoneInfo.phone);
-
-                if(!countryCode || countryCode === ''){
-                    countryCode = 'US';
-                }
-
-                if(!language || language === ''){
-                    language = 'en';
-                }
-
-                if(phoneInfo.cc === '77' || phoneInfo.cc === '79'){
-                    phoneInfo.cc = '7';
-                }
-
-                host += 'in='       + phoneInfo.phone + '&' +
-                        'cc='       + phoneInfo.cc    + '&' +
-                        'id='       + self.identity   + '&' +
-                        'lg='       + language        + '&' +
-                        'lc='       + countryCode     + '&' +
-                        'mcc='      + phoneInfo.mcc   + '&' +
-                        'mnc='      + phoneInfo.mnc   + '&' +
-                        'sim_mcc='  + phoneInfo.mcc   + '&' +
-                        'sim_mnc='  + phoneInfo.mnc   + '&' +
-                        'method='   + method          + '&' +
-                        'token='    + encodeURIComponent(token) + '&' +
-                        'network_radio_type='   +  1;
-
-                console.log(host);
-
-                http.request(
-                    {
-                        host: host,
-                        headers: {
-                            'User-Agent': self.WHATSAPP_USER_AGENT,
-                            Accept: 'text/json'
-                        }
-                    },
-                    function(response){
-                        response.on('data',
-                            function(data){
-                                self.emit('newCredentials', JSON.parse(data));
-                            }
-                        );
-                    }
-                ).on('error', function(e){
-                        if(e){
-                            self.emit('error', e);
-                        }
-                    });
-            }else{
-                self.emit(error);
-            }
-        }
-    );
-};
-
-Sup.prototype.login = function loginToWhatsAppServer(password){
+Sup.prototype.login = function loginToWhatsAppServer(password, code){
     var self = this;
 
     self.buildIdentity(self.phoneNumber,
@@ -682,10 +755,10 @@ Sup.prototype.login = function loginToWhatsAppServer(password){
                             self.doLogin();
                         }
                     );
-                }else{
+                }else if(code){
                     console.log('teste');
-                    self.once('newCredentials', function(credentials){console.log(credentials);});
-                    self.codeRequest('sms');
+                    self.once('codeRegister', function(credentials){console.log(credentials);});
+                    self.codeRegister(code);
                 }
             } else {
                 self.emit('error', error);
