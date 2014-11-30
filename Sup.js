@@ -597,7 +597,7 @@ Sup.prototype.codeRequest = function codeRequest(method){
     self.dissectPhone(self.COUNTRIES, self.phoneNumber,
         function(error, phoneInfo) {
             if(!error){
-                var host = 'https://' + self.WHATSAPP_CHECK_HOST + '?';
+                var host = 'https://' + self.WHATSAPP_REQUEST_HOST + '?';
                 var countryCode = phoneInfo.ISO3166;
                 var language = phoneInfo.ISO639;
                 var token = basicFunc.genReqToken(phoneInfo.phone);
