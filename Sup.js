@@ -8,6 +8,7 @@ var async = require('async');
 var basicFunc = require('./BasicFunctions');
 var Constants = require('./Constants');
 var crypto = require('crypto');
+var EventEmitter = require('events').EventEmitter;
 var fs = require('fs');
 var generateKeys = require('./KeyStream').generateKeys;
 var KeyStream = require('./KeyStream');
@@ -52,6 +53,7 @@ function Sup(number, nickname, messageWriter) {
     };
 
     //######################### Some Default Set-Up's ################################
+    EventEmitter.prototype.setMaxListeners.call(this, 20);
     this.setupListeners();
     this.setTimeout(self.TIMEOUT_SEC);
 
@@ -469,6 +471,7 @@ Sup.prototype.buildIdentity = function buildIdentity(identity, callback){
 
 Sup.prototype.openCSV = function OpenCSVFile(path, callback){
     var csv = require('fast-csv');
+    path = __dirname + '/' + path;
 
     fs.exists(path, function(exists) {
         if (exists) {
@@ -667,24 +670,3 @@ Sup.prototype.userSubscription = function userSubscription(to, mode, callback){
 Sup.prototype.waitFor = function waitFor(tag, callback){
     this.once(tag, callback);
 };
-
-var teste = new Sup('5521989316579', 'Xing Ling Lee');
-teste.login('eW8hwE74KhuApT3n6VZihPt+oPI=');
-teste.configureProps(function(){
-    teste.syncContacts('5521991567340', function(){
-        teste.userSubscription('5521991567340', function(){
-            teste.sendMessage('5521991567340', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
-            teste.sendMessage('5521999667644', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
-            teste.sendMessage('5521999840775', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
-        });
-    });
-});
-teste.on('message',
-    function(from, id, type, time, notify, text){
-        if(type === 'text') {
-            console.log('\nMensagem De ' + from + '(' + notify + ')');
-            console.log('Texto: '+text);
-            console.log('Em: '+new Date(time * 1000));
-        }
-    }
-);
