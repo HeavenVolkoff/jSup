@@ -74,13 +74,6 @@ function Sup(number, nickname, messageWriter) {
             writable: true
         },
         identity: {
-            value: self.buildIdentity(number, function(error, data){
-                if(!error){
-                    self.identity = data;
-                }else{
-                    self.emit('error', error);
-                }
-            }),
             writable: true,
             enumerable: true
         },
@@ -658,29 +651,39 @@ Sup.prototype.checkCredentials = function checkCredentials(){
 Sup.prototype.login = function loginToWhatsAppServer(password){
     var self = this;
 
-    if(password){
-        if(Buffer.isBuffer(password)){
-            self.password = password;
-        }else if(typeof password === 'string'){
-            self.password = new Buffer(password, 'base64');
-        }else{
-            self.emit('error', new TypeError('Password need to be a Base64 encoded String or a Buffer'));
-        }
+    self.buildIdentity(self.phoneNumber,
+        function(error, data) {
+            if (!error) {
+                self.identity = data;
 
-        fs.readFile(self.CHALLENGE_DATA_FILE_NAME,
-            function(error, data){
-                if(!error && data.length){
-                    self._challengeData = data;
+                if(password){
+                    if(Buffer.isBuffer(password)){
+                        self.password = password;
+                    }else if(typeof password === 'string'){
+                        self.password = new Buffer(password, 'base64');
+                    }else{
+                        self.emit('error', new TypeError('Password need to be a Base64 encoded String or a Buffer'));
+                    }
+
+                    fs.readFile(self.CHALLENGE_DATA_FILE_NAME,
+                        function(error, data){
+                            if(!error && data.length){
+                                self._challengeData = data;
+                            }
+
+                            self.doLogin();
+                        }
+                    );
+                }else{
+                    console.log('teste');
+                    self.once('newCredentials', function(credentials){console.log(credentials);});
+                    self.checkCredentials();
                 }
-
-                self.doLogin();
+            } else {
+                self.emit('error', error);
             }
-        );
-    }else{
-        console.log('teste');
-        self.checkCredentials();
-        self.once('newCredentials', function(credentials){console.log(credentials);});
-    }
+        }
+    );
 };
 
 Sup.prototype.sendMessage = function sendTextMessage(to, text, callback){
