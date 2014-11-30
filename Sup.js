@@ -16,6 +16,7 @@ var KeyStream = require('./KeyStream');
 var MessageReader = require('./MessageReader');
 var MessageWriter = require('./MessageWriter');
 var Socket = require('net').Socket;
+var url = require('url');
 var util = require('util');
 
 module.exports = Sup;
