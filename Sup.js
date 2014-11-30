@@ -11,6 +11,7 @@ var crypto = require('crypto');
 var EventEmitter = require('events').EventEmitter;
 var fs = require('fs');
 var generateKeys = require('./KeyStream').generateKeys;
+var http = require('http');
 var KeyStream = require('./KeyStream');
 var MessageReader = require('./MessageReader');
 var MessageWriter = require('./MessageWriter');
@@ -413,13 +414,14 @@ Sup.prototype.setupListeners = function setupInternalListeners(){
         }
     });
 
-    self.on(        '_send',        function (bufferArray)                  {  self._onSend     (bufferArray);                  });     //Send Event Listener that send messages to whatsApp server
-    self.on(        '_challenge',   function (challenge)                    {  self._onChallenge(challenge);                    });     //Challenge Event Listener that process the received challenge data
-    self.on(        'connected',    function (challenge)                    {  self._onConnected(challenge);                    });     //Connected (a.k.a Success) Event Listener that process future connection challengeData
-    self._writer.on('pushed',       function (index, id)                    {  self._onPushed   (index, id);                    });     //Writer Pushed Event Listener that add the pushed message index into internal array
-    self._writer.on('written',      function (index, id, buffer, callback)  {  self._onWritten  (index, id, buffer, callback);  });     //Writer Written Event Listener that add the written message to outgoing queue
-    self._reader.on('decoded',      function (index, messageNode)           {  self.onDecode    (index, messageNode);           });     //Reader decoded Event Listener that process every message received
-    self._writer.on('error', function (error){                                                                                          //Bug logging
+    self.on(        '_send',            function (bufferArray)                  {  self._onSend     (bufferArray);                  });     //Send Event Listener that send messages to whatsApp server
+    self.on(        '_challenge',       function (challenge)                    {  self._onChallenge(challenge);                    });     //Challenge Event Listener that process the received challenge data
+    self.on(        'connected',        function (challenge)                    {  self._onConnected(challenge);                    });     //Connected (a.k.a Success) Event Listener that process future connection challengeData
+    self.on(        'newCrededntials',  function (credentials)                  {  self.password = credentials.pw;                  });     //New Credentials Event Listener that process new Credentials
+    self._writer.on('pushed',           function (index, id)                    {  self._onPushed   (index, id);                    });     //Writer Pushed Event Listener that add the pushed message index into internal array
+    self._writer.on('written',          function (index, id, buffer, callback)  {  self._onWritten  (index, id, buffer, callback);  });     //Writer Written Event Listener that add the written message to outgoing queue
+    self._reader.on('decoded',          function (index, messageNode)           {  self.onDecode    (index, messageNode);           });     //Reader decoded Event Listener that process every message received
+    self._writer.on('error', function (error){                                                                                              //Bug logging
         if (error){
             var bug = new Buffer(error.toString());
             fs.open('Errors.log', 'w+', function(error, file){
@@ -428,10 +430,10 @@ Sup.prototype.setupListeners = function setupInternalListeners(){
                 }else{
                     console.log('Error saving fail (file access deny).');
                 }
-            })
+            });
         }
     });
-    self._reader.on('error', function (error){                                                                                          //Bug logging
+    self._reader.on('error', function (error){                                                                                              //Bug logging
         if (error) {
             var bug = new Buffer(error.toString());
             fs.open('Errors.log', 'w+', function (error, file) {
@@ -440,7 +442,7 @@ Sup.prototype.setupListeners = function setupInternalListeners(){
                 } else {
                     console.log('Error saving fail (file access deny).');
                 }
-            })
+            });
         }
     });
 };
@@ -595,6 +597,62 @@ Sup.prototype.doLogin = function doLogin(){
     });
 };
 
+Sup.prototype.checkCredentials = function checkCredentials(){
+    var self = this;
+
+    self.dissectPhone(self.COUNTRIES, self.phoneNumber,
+        function(error, phoneInfo) {
+            if(!error){
+                var host = 'https://' + self.WHATSAPP_CHECK_HOST + '?';
+                var countryCode = phoneInfo.ISO3166;
+                var language = phoneInfo.ISO639;
+
+                if(!countryCode || countryCode === ''){
+                    countryCode = 'US';
+                }
+
+                if(!language || language === ''){
+                    language = 'en';
+                }
+
+                if(phoneInfo.cc === '77' || phoneInfo.cc === '79'){
+                    phoneInfo.cc = '7';
+                }
+
+                host += 'cc=' + phoneInfo.cc    + '&' +
+                        'in=' + phoneInfo.phone + '&' +
+                        'id=' + self.identity   + '&' +
+                        'lg=' + language        + '&' +
+                        'lc=' + countryCode     + '&' +
+                        'network_radio_type='   +  1;
+
+                http.request(
+                    {
+                        host: host,
+                        headers: {
+                            'User-Agent': self.WHATSAPP_USER_AGENT,
+                            Accept: 'text/json'
+                        }
+                    },
+                    function(response){
+                        response.on('data',
+                            function(data){
+                                self.emit('newCredentials', JSON.parse(data));
+                            }
+                        );
+                    }
+                ).on('error', function(e){
+                        if(e){
+                            self.emit('error', e);
+                        }
+                    });
+            }else{
+                self.emit(error);
+            }
+        }
+    );
+};
+
 Sup.prototype.login = function loginToWhatsAppServer(password){
     var self = this;
 
@@ -617,7 +675,8 @@ Sup.prototype.login = function loginToWhatsAppServer(password){
             }
         );
     }else{
-        //Todo: receive new Password from whatsApp Servers
+        self.checkCredentials();
+        self.on('newCredentials', function(credentials){console.log(credentials);});
     }
 };
 
