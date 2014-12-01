@@ -159,7 +159,6 @@ Sup.codeRequest = function codeRequest(method, phone, callback){
 
                             https.get(options,
                                 function (response) {
-                                    console.log(response);
                                     response.on('data',
                                         function (data) {
                                             callback(null, JSON.parse(data));
@@ -168,7 +167,6 @@ Sup.codeRequest = function codeRequest(method, phone, callback){
                                 }
                             ).on('error', function (error) {
                                     if (error) {
-                                        console.log(error);
                                         callback(error, null);
                                     }
                                 });
@@ -233,7 +231,6 @@ Sup.codeRegister = function codeRegister(code, phone, callback){
 
                             https.get(options,
                                 function (response) {
-                                    console.log(response);
                                     response.on('data',
                                         function (data) {
                                             callback(null,JSON.parse(data));
