@@ -495,6 +495,7 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
 
                             if(!author){
                                 var from = messageNode.getAttribute('from');
+
                                 self.emit('message',
                                     from.slice(0, from.indexOf('@')),
                                     messageNode.getAttribute('id'),
@@ -511,7 +512,7 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
                                     messageNode.getAttribute('type'),
                                     messageNode.getAttribute('t'),
                                     messageNode.getAttribute('notify'),
-                                    body.getData('utf8')
+                                    body.data.toString('utf8')
                                 );
                             }
                         }
@@ -519,12 +520,75 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
 
                     break;
                 case 'media':
-                    self._writeMsg('receipt', {type: self._autoReceipt, to: messageNode.getAttribute('from'), receivedMsgId: messageNode.getAttribute('id')}, true);
+                    var media = messageNode.getChild('media', function(media){
+                        self._writeMsg('receipt', {type: self._autoReceipt, to: messageNode.getAttribute('from'), receivedMsgId: messageNode.getAttribute('id')}, true);
+                        var from = messageNode.getAttribute('from');
+                        switch (media.getAttribute('type')){
+                            case 'image':
+                                self.emit('imageMessage',
+                                    from.slice(0, from.indexOf('@')),
+                                    messageNode.getAttribute('id'),
+                                    'image',
+                                    messageNode.getAttribute('t'),
+                                    messageNode.getAttribute('notify'),
+                                    media.getAttribute('size'),
+                                    media.getAttribute('url'),
+                                    media.getAttribute('file'),
+                                    media.getAttribute('mimetype'),
+                                    media.getAttribute('filehash'),
+                                    media.getAttribute('width'),
+                                    media.getAttribute('heigth'),
+                                    media.data,
+                                    media.getAttribute('caption')
+                                );
+
+                                break;
+
+                            case 'video':
+                                self.emit('imageMessage',
+                                    from.slice(0, from.indexOf('@')),
+                                    messageNode.getAttribute('id'),
+                                    'video',
+                                    messageNode.getAttribute('t'),
+                                    messageNode.getAttribute('notify'),
+                                    media.getAttribute('size'),
+                                    media.getAttribute('url'),
+                                    media.getAttribute('file'),
+                                    media.getAttribute('mimetype'),
+                                    media.getAttribute('filehash'),
+                                    media.getAttribute('duration'),
+                                    media.getAttribute('vcodec'),
+                                    media.getAttribute('acodec'),
+                                    media.data,
+                                    media.getAttribute('caption')
+                                );
+
+                                break;
+
+                            case 'audio':
+                                self.emit('imageMessage',
+                                    from.slice(0, from.indexOf('@')),
+                                    messageNode.getAttribute('id'),
+                                    'audio',
+                                    messageNode.getAttribute('t'),
+                                    messageNode.getAttribute('notify'),
+                                    media.getAttribute('size'),
+                                    media.getAttribute('url'),
+                                    media.getAttribute('file'),
+                                    media.getAttribute('mimetype'),
+                                    media.getAttribute('filehash'),
+                                    media.getAttribute('seconds'),
+                                    media.getAttribute('acodec')
+                                );
+
+                                break;
+                        }
+                    });
             }
 
             break;
         case 'presence':
-            var from = messageNode.getAttribute('from');
+
 
             break;
         case 'ib':
@@ -539,6 +603,21 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
             break;
         case 'receipt':
             self._writeMsg('ack', {to: messageNode.getAttribute('from'), receivedMsgId: messageNode.getAttribute('id'), type: self._autoReceipt}, true);
+            self.emit('receipt',
+                messageNode.getAttribute('from'),
+                messageNode.getAttribute('id'),
+                messageNode.getAttribute('type'),
+                messageNode.getAttribute('t')
+            );
+
+            break;
+        case 'ack':
+            self.emit('ack',
+                messageNode.getAttribute('from'),
+                messageNode.getAttribute('id'),
+                messageNode.getAttribute('class'),
+                messageNode.getAttribute('t')
+            );
 
             break;
         default:
