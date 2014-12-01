@@ -19,6 +19,244 @@ var Socket = require('net').Socket;
 var url = require('url');
 var util = require('util');
 
+
+function buildIdentity(identity, callback){
+    fs.readFile(identity+'.dat', function(error, data){
+        if(!error && data.length === 48) {
+            callback(null, data);
+        }else{
+            crypto.pseudoRandomBytes(16, function(error, buff){
+                if(!error){
+                    var count = 0;
+                    var identityBuff = new Buffer(buff.length * 3);
+                    identityBuff.write('%', count++);
+
+                    async.eachSeries(
+                        buff,
+                        function(data, callback){
+                            data = data.toString(16);
+                            if(data.length % 2){
+                                data = '0' + data;
+                            }
+
+                            identityBuff.write(data.toLowerCase(), count);
+                            count += 2;
+                            identityBuff.write('%', count++);
+                            callback();
+                        },
+                        function(){
+                            fs.writeFile(identity+'.dat', identityBuff, function(error){
+                                if(error) {
+                                    callback(error, null)
+                                }
+                            });
+                            callback(null, identityBuff);
+                        }
+                    );
+                }else{
+                    callback(error, null);
+                }
+            });
+        }
+    });
+}
+
+function openCSV(path, callback){
+    var csv = require('fast-csv');
+    path = __dirname + '/' + path;
+
+    fs.exists(path, function(exists) {
+        if (exists) {
+            csv.fromPath(path)
+                .on('data', function(data){callback(null, data);});//TODO: this function is a listener that don't stop even after the callback has returned true, check if there is a way to kill it.
+        }else{
+            callback(new Error('file' + path + 'not found', 'FILE_NOT_FOUND'), null);
+        }
+    });
+}
+
+function dissectPhone(path, phone, callback) {
+    //TODO: make this a database to make queries
+    openCSV(path, function openCSVCountries(error, data){
+        if(!error){
+            if(phone.indexOf(data[1]) === 0){
+                //Hot-fix for North America Country code
+                if(data[1].substr(0, 1) === '1'){
+                    data[1] = '1';
+                }
+
+                var phoneInfo = {
+                    country: data[0],
+                    cc: data[1],
+                    phone: phone.substr(data[1].length),
+                    mcc: data[2].split('|')[0],
+                    ISO3166: data[3],
+                    ISO639: data[4],
+                    mnc: data[5]
+                };
+
+                callback(null, phoneInfo);
+            }
+        }else{
+            callback(error, null);
+        }
+    });
+}
+
+module.exports = function codeRequest(method, phone, callback){
+    var constant = new Constants();
+    method = method === 'sms' || method === 'voice'? method : 'sms';
+
+    buildIdentity(phone,
+        function(error, identity) {
+            if (!error) {
+                dissectPhone(constant.COUNTRIES, constant.phoneNumber,
+                    function (error, phoneInfo) {
+                        if (!error) {
+                            var host = 'https://' + constant.WHATSAPP_REQUEST_HOST + '?';
+                            var countryCode = phoneInfo.ISO3166;
+                            var language = phoneInfo.ISO639;
+                            var token = basicFunc.genReqToken(phoneInfo.phone);
+
+                            if (!countryCode || countryCode === '') {
+                                countryCode = 'US';
+                            }
+
+                            if (!language || language === '') {
+                                language = 'en';
+                            }
+
+                            if (phoneInfo.cc === '77' || phoneInfo.cc === '79') {
+                                phoneInfo.cc = '7';
+                            }
+
+                            host += 'in=' + phoneInfo.phone + '&' +
+                            'cc=' + phoneInfo.cc + '&' +
+                            'id=' + identity + '&' +
+                            'lg=' + language + '&' +
+                            'lc=' + countryCode + '&' +
+                            'mcc=' + phoneInfo.mcc + '&' +
+                            'mnc=' + phoneInfo.mnc + '&' +
+                            'sim_mcc=' + phoneInfo.mcc + '&' +
+                            'sim_mnc=' + phoneInfo.mnc + '&' +
+                            'method=' + method + '&' +
+                            'token=' + encodeURIComponent(token) + '&' +
+                            'network_radio_type=' + 1;
+
+                            host = url.parse(host);
+
+                            var options = {
+                                hostname: host.host,
+                                path: host.path,
+                                headers: {
+                                    'User-Agent': constant.WHATSAPP_USER_AGENT,
+                                    Accept: 'text/json'
+                                },
+                                rejectUnauthorized: false
+                            };
+
+                            options.agent = new https.Agent(options);
+
+                            https.get(options,
+                                function (response) {
+                                    console.log(response);
+                                    response.on('data',
+                                        function (data) {
+                                            callback(null, JSON.parse(data));
+                                        }
+                                    );
+                                }
+                            ).on('error', function (error) {
+                                    if (error) {
+                                        console.log(error);
+                                        callback(error, null);
+                                    }
+                                });
+                        } else {
+                            callback(error, null);
+                        }
+                    }
+                );
+            } else {
+                callback(error, null);
+            }
+        }
+    );
+};
+
+module.exports = function codeRegister(code, phone, callback){
+    var constant = new Constants();
+
+    buildIdentity(phone,
+        function(error, identity) {
+            if (!error) {
+                dissectPhone(constant.COUNTRIES, phone,
+                    function (error, phoneInfo) {
+                        if (!error) {
+                            var host = 'https://' + constant.WHATSAPP_REGISTER_HOST + '?';
+                            var countryCode = phoneInfo.ISO3166;
+                            var language = phoneInfo.ISO639;
+
+                            if (!countryCode || countryCode === '') {
+                                countryCode = 'US';
+                            }
+
+                            if (!language || language === '') {
+                                language = 'en';
+                            }
+
+                            if (phoneInfo.cc === '77' || phoneInfo.cc === '79') {
+                                phoneInfo.cc = '7';
+                            }
+
+                            host += 'cc=' + phoneInfo.cc + '&' +
+                            'in=' + phoneInfo.phone + '&' +
+                            'id=' + identity + '&' +
+                            'code=' + code + '&' +
+                            'lg=' + language + '&' +
+                            'lc=' + countryCode + '&' +
+                            'network_radio_type=' + 1;
+
+                            host = url.parse(host);
+
+                            var options = {
+                                hostname: host.host,
+                                path: host.path,
+                                headers: {
+                                    'User-Agent': constant.WHATSAPP_USER_AGENT,
+                                    Accept: 'text/json'
+                                },
+                                rejectUnauthorized: false
+                            };
+
+                            options.agent = new https.Agent(options);
+
+                            https.get(options,
+                                function (response) {
+                                    console.log(response);
+                                    response.on('data',
+                                        function (data) {
+                                            callback(null,JSON.parse(data));
+                                        }
+                                    );
+                                }
+                            ).on('error', function (e) {
+                                    if (e) {
+                                        callback(error, null);
+                                    }
+                                });
+                        } else {
+                            callback(error, null);
+                        }
+                    }
+                );
+            }else{
+                callback(error, null);
+            }
+        }
+    );
+};
+
 module.exports = Sup;
 
 util.inherits(Sup, Socket);
@@ -387,26 +625,26 @@ Sup.prototype._onWritten = function onWrittenEvent(index, id, buff, callback){
 Sup.prototype.setupListeners = function setupInternalListeners(){
     var self = this;
 
-    self.on('end', function onEnd(){
-        console.log('\nconnection ended by the partner');
-    });
-    self.on('error', function onError(error){
-        console.log('\nconnection error');
-        throw error;
-    });
-    self.on('timeout', function onTimeOut(){
-        //console.log('\nconnection on idle');
-    });
-    self.on('drain', function onWriteBufferEmpty(){
-        console.log('\nwrite buffer empty');
-    });
-    self.on('close', function onClose(hadError){
-        if(hadError){
-            console.log('\nconnection closed');
-        }else{
-            console.log('\nconnection closed due to a transmission error.');
-        }
-    });
+    //self.on('end', function onEnd(){
+    //    console.log('\nconnection ended by the partner');
+    //});
+    //self.on('error', function onError(error){
+    //    console.log('\nconnection error');
+    //    throw error;
+    //});
+    //self.on('timeout', function onTimeOut(){
+    //    //console.log('\nconnection on idle');
+    //});
+    //self.on('drain', function onWriteBufferEmpty(){
+    //    console.log('\nwrite buffer empty');
+    //});
+    //self.on('close', function onClose(hadError){
+    //    if(hadError){
+    //        console.log('\nconnection closed');
+    //    }else{
+    //        console.log('\nconnection closed due to a transmission error.');
+    //    }
+    //});
 
     self.on(        '_send',            function (bufferArray)                  {  self._onSend     (bufferArray);                  });     //Send Event Listener that send messages to whatsApp server
     self.on(        '_challenge',       function (challenge)                    {  self._onChallenge(challenge);                    });     //Challenge Event Listener that process the received challenge data
@@ -444,240 +682,6 @@ Sup.prototype.setupListeners = function setupInternalListeners(){
 Sup.prototype.disconnect = function endSocketConnection(){
     this.end();
     this.destroy();
-};
-
-Sup.prototype.buildIdentity = function buildIdentity(identity, callback){
-    var self = this;
-
-    fs.readFile(identity+'.dat', function(error, data){
-        if(!error && data.length === self.IDENTITY_LENGTH) {
-            callback(null, data);
-        }else{
-            crypto.pseudoRandomBytes(16, function(error, buff){
-                if(!error){
-                    var count = 0;
-                    var identityBuff = new Buffer(buff.length * 3);
-                    identityBuff.write('%', count++);
-
-                    async.eachSeries(
-                        buff,
-                        function(data, callback){
-                            data = data.toString(16);
-                            if(data.length % 2){
-                                data = '0' + data;
-                            }
-
-                            identityBuff.write(data.toLowerCase(), count);
-                            count += 2;
-                            identityBuff.write('%', count++);
-                            callback();
-                        },
-                        function(){
-                            fs.writeFile(identity+'.dat', identityBuff, function(error){
-                                if(error) {
-                                    self.emit('error', error);
-                                }
-                            });
-                            callback(null, identityBuff);
-                        }
-                    );
-                }else{
-                    callback(error, null);
-                }
-            });
-        }
-    });
-};
-
-Sup.prototype.openCSV = function OpenCSVFile(path, callback){
-    var csv = require('fast-csv');
-    path = __dirname + '/' + path;
-
-    fs.exists(path, function(exists) {
-        if (exists) {
-            csv.fromPath(path)
-                .on('data', function(data){callback(null, data);});//TODO: this function is a listener that don't stop even after the callback has returned true, check if there is a way to kill it.
-        }else{
-            callback(new Error('file' + path + 'not found', 'FILE_NOT_FOUND'), null);
-        }
-    });
-};
-
-Sup.prototype.dissectPhone = function dissectCountryCodeFromPhoneNumber(path, phone, callback) {
-    //TODO: make this a database to make queries
-    this.openCSV(path, function openCSVCountries(error, data){
-        if(!error){
-            if(phone.indexOf(data[1]) === 0){
-                //Hot-fix for North America Country code
-                if(data[1].substr(0, 1) === '1'){
-                    data[1] = '1';
-                }
-
-                var phoneInfo = {
-                    country: data[0],
-                    cc: data[1],
-                    phone: phone.substr(data[1].length),
-                    mcc: data[2].split('|')[0],
-                    ISO3166: data[3],
-                    ISO639: data[4],
-                    mnc: data[5]
-                };
-
-                callback(null, phoneInfo);
-            }
-        }else{
-            callback(error, null);
-        }
-    });
-};
-
-Sup.prototype.codeRequest = function codeRequest(method){
-    method = method === 'sms' || method === 'voice'? method : 'sms';
-    var self = this;
-
-    self.buildIdentity(self.phoneNumber,
-        function(error, data) {
-            if (!error) {
-                self.identity = data;
-
-                self.dissectPhone(self.COUNTRIES, self.phoneNumber,
-                    function (error, phoneInfo) {
-                        if (!error) {
-                            var host = 'https://' + self.WHATSAPP_REQUEST_HOST + '?';
-                            var countryCode = phoneInfo.ISO3166;
-                            var language = phoneInfo.ISO639;
-                            var token = basicFunc.genReqToken(phoneInfo.phone);
-
-                            if (!countryCode || countryCode === '') {
-                                countryCode = 'US';
-                            }
-
-                            if (!language || language === '') {
-                                language = 'en';
-                            }
-
-                            if (phoneInfo.cc === '77' || phoneInfo.cc === '79') {
-                                phoneInfo.cc = '7';
-                            }
-
-                            host += 'in=' + phoneInfo.phone + '&' +
-                            'cc=' + phoneInfo.cc + '&' +
-                            'id=' + self.identity + '&' +
-                            'lg=' + language + '&' +
-                            'lc=' + countryCode + '&' +
-                            'mcc=' + phoneInfo.mcc + '&' +
-                            'mnc=' + phoneInfo.mnc + '&' +
-                            'sim_mcc=' + phoneInfo.mcc + '&' +
-                            'sim_mnc=' + phoneInfo.mnc + '&' +
-                            'method=' + method + '&' +
-                            'token=' + encodeURIComponent(token) + '&' +
-                            'network_radio_type=' + 1;
-
-                            host = url.parse(host);
-
-                            var options = {
-                                hostname: host.host,
-                                path: host.path,
-                                headers: {
-                                    'User-Agent': self.WHATSAPP_USER_AGENT,
-                                    Accept: 'text/json'
-                                },
-                                rejectUnauthorized: false
-                            };
-
-                            options.agent = new https.Agent(options);
-
-                            https.get(options,
-                                function (response) {
-                                    console.log(response);
-                                    response.on('data',
-                                        function (data) {
-                                            self.emit('codeRequest', JSON.parse(data));
-                                        }
-                                    );
-                                }
-                            ).on('error', function (e) {
-                                    if (e) {
-                                        console.log(e);
-                                        self.emit('error', e);
-                                    }
-                                });
-                        } else {
-                            self.emit(error);
-                        }
-                    }
-                );
-            } else {
-                self.emit('error', error);
-            }
-        }
-    );
-};
-
-Sup.prototype.codeRegister = function codeRegister(code){
-    var self = this;
-
-    self.dissectPhone(self.COUNTRIES, self.phoneNumber,
-        function(error, phoneInfo) {
-            if(!error){
-                var host = 'https://' + self.WHATSAPP_REGISTER_HOST + '?';
-                var countryCode = phoneInfo.ISO3166;
-                var language = phoneInfo.ISO639;
-
-                if(!countryCode || countryCode === ''){
-                    countryCode = 'US';
-                }
-
-                if(!language || language === ''){
-                    language = 'en';
-                }
-
-                if(phoneInfo.cc === '77' || phoneInfo.cc === '79'){
-                    phoneInfo.cc = '7';
-                }
-
-                host += 'cc='       + phoneInfo.cc    + '&' +
-                'in='       + phoneInfo.phone + '&' +
-                'id='       + self.identity   + '&' +
-                'code='     + code            + '&' +
-                'lg='       + language        + '&' +
-                'lc='       + countryCode     + '&' +
-                'network_radio_type='   +  1;
-
-                host = url.parse(host);
-
-                var options = {
-                    hostname: host.host,
-                    path: host.path,
-                    headers: {
-                        'User-Agent': self.WHATSAPP_USER_AGENT,
-                        Accept: 'text/json'
-                    },
-                    rejectUnauthorized: false
-                };
-
-                options.agent = new https.Agent(options);
-
-                https.get(options,
-                    function(response){
-                        console.log(response);
-                        response.on('data',
-                            function(data){
-                                self.emit('codeRegister', JSON.parse(data));
-                            }
-                        );
-                    }
-                ).on('error', function(e){
-                        if(e){
-                            console.log(e);
-                            self.emit('error', e);
-                        }
-                    });
-            }else{
-                self.emit(error);
-            }
-        }
-    );
 };
 
 Sup.prototype.createAuthBlob = function createAuthBlob(callback){
@@ -740,15 +744,14 @@ Sup.prototype.doLogin = function doLogin(){
     });
 };
 
-Sup.prototype.login = function loginToWhatsAppServer(password, code){
+Sup.prototype.login = function loginToWhatsAppServer(password){
     var self = this;
 
-    self.buildIdentity(self.phoneNumber,
+    buildIdentity(self.phoneNumber,
         function(error, data) {
             if (!error) {
                 self.identity = data;
 
-                if(password){
                     if(Buffer.isBuffer(password)){
                         self.password = password;
                     }else if(typeof password === 'string'){
@@ -766,11 +769,6 @@ Sup.prototype.login = function loginToWhatsAppServer(password, code){
                             self.doLogin();
                         }
                     );
-                }else if(code){
-                    console.log('teste');
-                    self.once('codeRegister', function(credentials){console.log(credentials);});
-                    self.codeRegister(code);
-                }
             } else {
                 self.emit('error', error);
             }
