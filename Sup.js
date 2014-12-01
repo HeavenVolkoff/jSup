@@ -705,7 +705,7 @@ Sup.prototype.createAuthBlob = function createAuthBlob(callback){
                 async.waterfall(
                     [
                         function (callback) {
-                            self.dissectPhone(self.COUNTRIES, self.phoneNumber, callback);
+                            dissectPhone(self.COUNTRIES, self.phoneNumber, callback);
                         },
                         function encodeAuthMessage(phoneInfo, callback) {
                             var time = parseInt(new Date().getTime() / 1000);
@@ -792,7 +792,7 @@ Sup.prototype.configureProps = function getServerPropertiesSendClientConfig(call
 
     if(self._canSendMsg) {
         self._writeMsg('props', true);
-        self.dissectPhone(self.COUNTRIES, self.phoneNumber, function(error, phoneInfo){
+        dissectPhone(self.COUNTRIES, self.phoneNumber, function(error, phoneInfo){
             if(!error){
                 self._writeMsg('config', {phoneObj: phoneInfo}, true, callback);
             }else {
