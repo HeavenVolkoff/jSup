@@ -782,6 +782,7 @@ Sup.prototype.sendMessage = function sendTextMessage(to, text, callback){
         self._writeMsg('text', {text: text, to: to}, true, callback);
     }else {
         setImmediate(function () {
+            console.log('teste');
             self.sendMessage(to, text, callback);
         });
     }
