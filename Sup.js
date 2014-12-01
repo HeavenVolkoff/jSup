@@ -110,7 +110,7 @@ Sup.codeRequest = function codeRequest(method, phone, callback){
     buildIdentity(phone,
         function(error, identity) {
             if (!error) {
-                dissectPhone(constant.COUNTRIES, constant.phoneNumber,
+                dissectPhone(constant.COUNTRIES, phone,
                     function (error, phoneInfo) {
                         if (!error) {
                             var host = 'https://' + constant.WHATSAPP_REQUEST_HOST + '?';
