@@ -612,6 +612,7 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
 
             break;
         case 'ack':
+            console.log(messageNode);
             self.emit('ack',
                 messageNode.getAttribute('from'),
                 messageNode.getAttribute('id'),
