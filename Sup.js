@@ -545,7 +545,7 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
                                 break;
 
                             case 'video':
-                                self.emit('imageMessage',
+                                self.emit('videoMessage',
                                     from.slice(0, from.indexOf('@')),
                                     messageNode.getAttribute('id'),
                                     'video',
@@ -566,7 +566,7 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
                                 break;
 
                             case 'audio':
-                                self.emit('imageMessage',
+                                self.emit('audioMessage',
                                     from.slice(0, from.indexOf('@')),
                                     messageNode.getAttribute('id'),
                                     'audio',
