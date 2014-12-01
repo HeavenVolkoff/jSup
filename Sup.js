@@ -603,12 +603,14 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
             break;
         case 'receipt':
             self._writeMsg('ack', {to: messageNode.getAttribute('from'), receivedMsgId: messageNode.getAttribute('id'), type: self._autoReceipt}, true);
-            self.emit('receipt',
-                messageNode.getAttribute('from'),
-                messageNode.getAttribute('id'),
-                messageNode.getAttribute('type'),
-                messageNode.getAttribute('t')
-            );
+            if(messageNode.getAttribute('type')){
+                self.emit('receipt',
+                    messageNode.getAttribute('from'),
+                    messageNode.getAttribute('id'),
+                    messageNode.getAttribute('type'),
+                    messageNode.getAttribute('t')
+                );
+            }
 
             break;
         case 'ack':
