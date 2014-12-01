@@ -84,7 +84,7 @@ MessageReader.prototype._transform = function transform(chunk, encoding, done){
 						callback();
 
 					} else {
-						callback(new Error('Invalid Message Size', 'MSG_SIZE'));
+						callback(new Error('Invalid Message Size\n' + 'Length: ' + length + '\n chunk ' + chunk, 'MSG_SIZE'));
 					}
 
 				} else {
