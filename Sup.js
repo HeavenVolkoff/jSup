@@ -103,7 +103,7 @@ function dissectPhone(path, phone, callback) {
     });
 }
 
-module.exports = function codeRequest(method, phone, callback){
+module.exports.codeRequest = function codeRequest(method, phone, callback){
     var constant = new Constants();
     method = method === 'sms' || method === 'voice'? method : 'sms';
 
@@ -184,7 +184,7 @@ module.exports = function codeRequest(method, phone, callback){
     );
 };
 
-module.exports = function codeRegister(code, phone, callback){
+module.exports.codeRegister = function codeRegister(code, phone, callback){
     var constant = new Constants();
 
     buildIdentity(phone,
