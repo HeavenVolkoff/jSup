@@ -386,7 +386,7 @@ MessageReader.prototype.readInternal = function readInternalAttributesFromMessag
 		/** Wait Till User Add Someone to Their Contact List **/
 		if(!child){
 			//this.emit('error', new Error('Null Message', 'MSG_NULL'));
-			console.log('Null Message');
+			this.emit('null');
 			this.clearPos(index);
 		}
 	}else {
