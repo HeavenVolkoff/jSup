@@ -47,7 +47,7 @@ function buildIdentity(identity, callback){
                         function(){
                             fs.writeFile(identity+'.dat', identityBuff, function(error){
                                 if(error) {
-                                    callback(error, null)
+                                    callback(error, null);
                                 }
                             });
                             callback(null, identityBuff);
@@ -537,7 +537,7 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
                                     media.getAttribute('mimetype'),
                                     media.getAttribute('filehash'),
                                     media.getAttribute('width'),
-                                    media.getAttribute('heigth'),
+                                    media.getAttribute('height'),
                                     media.data,
                                     media.getAttribute('caption')
                                 );
