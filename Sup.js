@@ -19,6 +19,7 @@ var url = require('url');
 var util = require('util');
 
 module.exports = Sup;
+Sup.buildIdentity = basicFunc.buildIdentity;
 Sup.dissectPhone = basicFunc.dissectPhone;
 Sup.codeRequest = basicFunc.codeRequest;
 Sup.codeRegister = basicFunc.codeRegister;
@@ -564,7 +565,7 @@ Sup.prototype.createAuthBlob = function createAuthBlob(callback){
                 async.waterfall(
                     [
                         function (callback) {
-                            dissectPhone(self.COUNTRIES, self.phoneNumber, callback);
+                            Sup.dissectPhone(self.COUNTRIES, self.phoneNumber, callback);
                         },
                         function encodeAuthMessage(phoneInfo, callback) {
                             var time = parseInt(new Date().getTime() / 1000);
@@ -603,7 +604,7 @@ Sup.prototype.doLogin = function doLogin(){
 Sup.prototype.login = function loginToWhatsAppServer(password){
     var self = this;
 
-    buildIdentity(self.phoneNumber,
+    Sup.buildIdentity(self.phoneNumber,
         function(error, data) {
             if (!error) {
                 self.identity = data;
@@ -651,7 +652,7 @@ Sup.prototype.configureProps = function getServerPropertiesSendClientConfig(call
 
     if(self._canSendMsg) {
         self._writeMsg('props', true);
-        dissectPhone(self.COUNTRIES, self.phoneNumber, function(error, phoneInfo){
+        Sup.dissectPhone(self.COUNTRIES, self.phoneNumber, function(error, phoneInfo){
             if(!error){
                 self._writeMsg('config', {phoneObj: phoneInfo}, true, callback);
             }else {
@@ -705,3 +706,24 @@ Sup.prototype.userSubscription = function userSubscription(to, mode, callback){
 Sup.prototype.waitFor = function waitFor(tag, callback){
     this.once(tag, callback);
 };
+
+//var teste = new Sup('5521989316579', 'Xing Ling Lee');
+//teste.login('eW8hwE74KhuApT3n6VZihPt+oPI=');
+//teste.configureProps(function(){
+//    teste.syncContacts('5521991567340', function(){
+//        teste.userSubscription('5521991567340', function(){
+//            teste.sendMessage('5521991567340', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
+//            teste.sendMessage('5521999667644', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
+//            teste.sendMessage('5521999840775', 'This is Sup Bitch Yeah!!!!!! WORKING \\o/\\o/');
+//        });
+//    });
+//});
+//teste.on('message',
+//    function(from, id, type, time, notify, text){
+//        if(type === 'text') {
+//            console.log('\nMensagem De ' + from + '(' + notify + ')');
+//            console.log('Texto: '+text);
+//            console.log('Em: '+new Date(time * 1000));
+//        }
+//    }
+//);

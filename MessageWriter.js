@@ -677,7 +677,6 @@ MessageWriter.prototype.flushBuffer = function flushBuffer(index, header) {
 
     //console.log('\nSend NODE');
     //console.log(util.inspect(this.output[index], { showHidden: false, depth: null, colors: true }));
-
     //console.log('\nSend BUFF NOT ENCODED WITHOUT HEADER');
     //console.log(data.toString('hex'));
 
