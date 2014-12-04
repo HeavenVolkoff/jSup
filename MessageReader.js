@@ -4,14 +4,12 @@
 
 'use strict';
 
+var async = require('async');
+var basicFunc = require('./BasicFunctions');
 var KeyStream = require('./KeyStream');
 var MessageNode = require('./MessageNode');
 var TokenMap = require('./TokenMap');
-var basicFunc = require('./BasicFunctions');
-var async = require('async');
 var Transform = require('stream').Transform;
-require('util').inherits(MessageReader, Transform);
-module.exports = MessageReader;
 
 /**
  * MessageReader Class
@@ -19,6 +17,10 @@ module.exports = MessageReader;
  * @constructor {BinTreeNodeReader}
  */
 function MessageReader(){
+	if (!(this instanceof MessageReader)){
+		return new MessageReader();
+	}
+
 	Transform.call(this, {objectMode: true});
 
 	this.on('pushed', this.readMessage);
@@ -44,6 +46,9 @@ function MessageReader(){
         }
     });
 }
+
+require('util').inherits(MessageReader, Transform);
+module.exports = MessageReader;
 
 /**
  * Internal _transform Function (DO NOT USE EXTERNALLY)
@@ -84,7 +89,7 @@ MessageReader.prototype._transform = function transform(chunk, encoding, done){
 						callback();
 
 					} else {
-						callback(new Error('Invalid Message Size\n' + 'Length: ' + length + '\nchunk: ' + chunk.toString('hex'), 'MSG_SIZE'));
+						callback(new Error('Invalid Message Size' + '\nHeader: ' + header.toString('hex') + '\nLength: ' + length + '\nchunk: ' + chunk.toString('hex'), 'MSG_SIZE'));
 					}
 
 				} else {

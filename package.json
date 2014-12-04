@@ -4,7 +4,7 @@
   "description": "Whatsapp javascript node.js API",
   "dependencies": {
     "async": "^0.9.0",
-    "fast-csv": "^0.5.3",
+    "fast-csv": "^0.5.4",
     "fluent-ffmpeg": "^2.0.0-rc2",
     "gm": "^1.16.0",
     "jssha": "^1.5.0"

@@ -3,6 +3,12 @@
  */
 
 'use strict';
+var fs = require('fs');
+var crypto = require('crypto');
+var url = require('url');
+var async = require('async');
+var https = require('https');
+var Constants = require('./Constants');
 
 /**
  * Check if it is Node.js environment
@@ -89,7 +95,7 @@ module.exports.parseMsgEmojis = function ParseMessageInboundForEmojis(txt, span)
 	);
 
 	return txt;
-}
+};
 
 /**
  * This function extracts the phone number.
@@ -258,7 +264,7 @@ function videoThumbnail()
  * @param phone
  * @returns {*}
  */
-module.exports.genReqToken = function generateRequestToken(phone){
+function generateRequestToken(phone){
 		phone = new Buffer(phone);
 	var crypto = require('crypto');
 	var signature = new Buffer('MIIDMjCCAvCgAwIBAgIETCU2pDALBgcqhkjOOAQDBQAwfDELMAkGA1UEBhMCVVMxEzARBgNVBAgTCkNhbGlmb3JuaWExFDASBgNVBAcTC1NhbnRhIENsYXJhMRYwFAYDVQQKEw1XaGF0c0FwcCBJbmMuMRQwEgYDVQQLEwtFbmdpbmVlcmluZzEUMBIGA1UEAxMLQnJpYW4gQWN0b24wHhcNMTAwNjI1MjMwNzE2WhcNNDQwMjE1MjMwNzE2WjB8MQswCQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5pYTEUMBIGA1UEBxMLU2FudGEgQ2xhcmExFjAUBgNVBAoTDVdoYXRzQXBwIEluYy4xFDASBgNVBAsTC0VuZ2luZWVyaW5nMRQwEgYDVQQDEwtCcmlhbiBBY3RvbjCCAbgwggEsBgcqhkjOOAQBMIIBHwKBgQD9f1OBHXUSKVLfSpwu7OTn9hG3UjzvRADDHj+AtlEmaUVdQCJR+1k9jVj6v8X1ujD2y5tVbNeBO4AdNG/yZmC3a5lQpaSfn+gEexAiwk+7qdf+t8Yb+DtX58aophUPBPuD9tPFHsMCNVQTWhaRMvZ1864rYdcq7/IiAxmd0UgBxwIVAJdgUI8VIwvMspK5gqLrhAvwWBz1AoGBAPfhoIXWmz3ey7yrXDa4V7l5lK+7+jrqgvlXTAs9B4JnUVlXjrrUWU/mcQcQgYC0SRZxI+hMKBYTt88JMozIpuE8FnqLVHyNKOCjrh4rs6Z1kW6jfwv6ITVi8ftiegEkO8yk8b6oUZCJqIPf4VrlnwaSi2ZegHtVJWQBTDv+z0kqA4GFAAKBgQDRGYtLgWh7zyRtQainJfCpiaUbzjJuhMgo4fVWZIvXHaSHBU1t5w//S0lDK2hiqkj8KpMWGywVov9eZxZy37V26dEqr/c2m5qZ0E+ynSu7sqUD7kGx/zeIcGT0H+KAVgkGNQCo5Uc0koLRWYHNtYoIvt5R3X6YZylbPftF/8ayWTALBgcqhkjOOAQDBQADLwAwLAIUAKYCp0d6z4QQdyN74JDfQ2WCyi8CFDUM4CaNB+ceVXdKtOrNTQcc0e+t', 'base64');
@@ -286,3 +292,239 @@ module.exports.genReqToken = function generateRequestToken(phone){
 
 	return hash2.read().toString('base64');
 }
+
+var buildIdentity = function buildIdentity(identity, callback){
+	fs.readFile(identity+'.dat', function(error, data){
+		if(!error && data.length === 48) {
+			callback(null, data);
+		}else{
+			crypto.pseudoRandomBytes(16, function(error, buff){
+				if(!error){
+					var count = 0;
+					var identityBuff = new Buffer(buff.length * 3);
+					identityBuff.write('%', count++);
+
+					async.eachSeries(
+						buff,
+						function(data, callback){
+							data = data.toString(16);
+							if(data.length % 2){
+								data = '0' + data;
+							}
+
+							identityBuff.write(data.toLowerCase(), count);
+							count += 2;
+							identityBuff.write('%', count++);
+							callback();
+						},
+						function(){
+							fs.writeFile(identity+'.dat', identityBuff, function(error){
+								if(error) {
+									callback(error, null);
+								}
+							});
+							callback(null, identityBuff);
+						}
+					);
+				}else{
+					callback(error, null);
+				}
+			});
+		}
+	});
+};
+module.exports.buildIdentity = buildIdentity;
+
+function openCSV(path, callback){
+	var csv = require('fast-csv');
+	path = __dirname + '/' + path;
+
+	fs.exists(path, function(exists) {
+		if (exists) {
+			csv.fromPath(path)
+				.on('data', function(data){callback(null, data);});//TODO: this function is a listener that don't stop even after the callback has returned true, check if there is a way to kill it.
+		}else{
+			callback(new Error('file' + path + 'not found', 'FILE_NOT_FOUND'), null);
+		}
+	});
+}
+
+var dissectPhone = function dissectPhone(path, phone, callback) {
+	//TODO: make this a database to make queries
+	openCSV(path, function openCSVCountries(error, data){
+		if(!error){
+			if(phone.indexOf(data[1]) === 0){
+				//Hot-fix for North America Country code
+				if(data[1].substr(0, 1) === '1'){
+					data[1] = '1';
+				}
+
+				var phoneInfo = {
+					country: data[0],
+					cc: data[1],
+					phone: phone.substr(data[1].length),
+					mcc: data[2].split('|')[0],
+					ISO3166: data[3],
+					ISO639: data[4],
+					mnc: data[5]
+				};
+
+				callback(null, phoneInfo);
+			}
+		}else{
+			callback(error, null);
+		}
+	});
+};
+module.exports.dissectPhone = dissectPhone;
+
+module.exports.codeRequest = function codeRequest(method, phone, callback){
+	var constant = new Constants();
+	method = method === 'sms' || method === 'voice'? method : 'sms';
+
+	buildIdentity(phone,
+		function(error, identity) {
+			if (!error) {
+				dissectPhone(constant.COUNTRIES, phone,
+					function (error, phoneInfo) {
+						if (!error) {
+							var host = 'https://' + constant.WHATSAPP_REQUEST_HOST + '?';
+							var countryCode = phoneInfo.ISO3166;
+							var language = phoneInfo.ISO639;
+							var token = generateRequestToken(phoneInfo.phone);
+
+							if (!countryCode || countryCode === '') {
+								countryCode = 'US';
+							}
+
+							if (!language || language === '') {
+								language = 'en';
+							}
+
+							if (phoneInfo.cc === '77' || phoneInfo.cc === '79') {
+								phoneInfo.cc = '7';
+							}
+
+							host += 'in=' + phoneInfo.phone + '&' +
+							'cc=' + phoneInfo.cc + '&' +
+							'id=' + identity + '&' +
+							'lg=' + language + '&' +
+							'lc=' + countryCode + '&' +
+							'mcc=' + phoneInfo.mcc + '&' +
+							'mnc=' + phoneInfo.mnc + '&' +
+							'sim_mcc=' + phoneInfo.mcc + '&' +
+							'sim_mnc=' + phoneInfo.mnc + '&' +
+							'method=' + method + '&' +
+							'token=' + encodeURIComponent(token) + '&' +
+							'network_radio_type=' + 1;
+
+							host = url.parse(host);
+
+							var options = {
+								hostname: host.host,
+								path: host.path,
+								headers: {
+									'User-Agent': constant.WHATSAPP_USER_AGENT,
+									Accept: 'text/json'
+								},
+								rejectUnauthorized: false
+							};
+
+							options.agent = new https.Agent(options);
+
+							https.get(options,
+								function (response) {
+									response.on('data',
+										function (data) {
+											callback(null, JSON.parse(data));
+										}
+									);
+								}
+							).on('error', function (error) {
+									if (error) {
+										callback(error, null);
+									}
+								});
+						} else {
+							callback(error, null);
+						}
+					}
+				);
+			} else {
+				callback(error, null);
+			}
+		}
+	);
+};
+
+module.exports.codeRegister = function codeRegister(code, phone, callback){
+	var constant = new Constants();
+
+	buildIdentity(phone,
+		function(error, identity) {
+			if (!error) {
+				dissectPhone(constant.COUNTRIES, phone,
+					function (error, phoneInfo) {
+						if (!error) {
+							var host = 'https://' + constant.WHATSAPP_REGISTER_HOST + '?';
+							var countryCode = phoneInfo.ISO3166;
+							var language = phoneInfo.ISO639;
+
+							if (!countryCode || countryCode === '') {
+								countryCode = 'US';
+							}
+
+							if (!language || language === '') {
+								language = 'en';
+							}
+
+							if (phoneInfo.cc === '77' || phoneInfo.cc === '79') {
+								phoneInfo.cc = '7';
+							}
+
+							host += 'cc=' + phoneInfo.cc + '&' +
+							'in=' + phoneInfo.phone + '&' +
+							'id=' + identity + '&' +
+							'code=' + code + '&' +
+							'lg=' + language + '&' +
+							'lc=' + countryCode + '&' +
+							'network_radio_type=' + 1;
+
+							host = url.parse(host);
+
+							var options = {
+								hostname: host.host,
+								path: host.path,
+								headers: {
+									'User-Agent': constant.WHATSAPP_USER_AGENT,
+									Accept: 'text/json'
+								},
+								rejectUnauthorized: false
+							};
+
+							options.agent = new https.Agent(options);
+
+							https.get(options,
+								function (response) {
+									response.on('data',
+										function (data) {
+											callback(null,JSON.parse(data));
+										}
+									);
+								}
+							).on('error', function (e) {
+									if (e) {
+										callback(error, null);
+									}
+								});
+						} else {
+							callback(error, null);
+						}
+					}
+				);
+			}else{
+				callback(error, null);
+			}
+		}
+	);
+};
