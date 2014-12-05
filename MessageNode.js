@@ -94,13 +94,16 @@ module.exports = MessageNode;
 				//if data is a buffer just push it to message array
 				this.message = data;
 			}else if(typeof data === 'string'){
-				//if data is a string encode it into a buffer and push it to message array. Only accepts Hex and Binary encoding
+				//if data is a string encode it into a buffer and push it to message array. Only accepts Hex, Binary and utf8 encoding
 				switch(encoding){
 					case 'hex':
 						this.message = new Buffer(data, encoding);
 						break;
+					case 'binary':
+						this.message = new Buffer(data, encoding);
+						break;
 					default:
-						this.message = new Buffer(data, 'binary');
+						this.message = new Buffer(data, 'utf8');
 						break;
 				}
 			}else if(typeof data === 'number'){
