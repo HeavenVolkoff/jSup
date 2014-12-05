@@ -72,7 +72,7 @@ MessageReader.prototype._transform = function transform(chunk, encoding, done){
 				if (header.length === 3) {
 					length = (basicFunc.shiftLeft(header[0] & 0x0F, 16) | basicFunc.shiftLeft(header[1], 8) | header[2]) + header.length; //calculate message size and sum the header length
 
-					if (chunk[length - 1] !== undefined) {	//Verifies if message length is valid
+					if (chunk[length - header.length - 1] !== undefined) {	//Verifies if message length is valid
 						var message = [basicFunc.shiftRight(chunk[0] & 0xF0, 4), length - header.length, chunk.slice(3, length)]; //add [flag, size, message] to internal buffer
 						var index = self.messages.indexOf(null);	//get Null position in array if it exists
 
@@ -89,7 +89,7 @@ MessageReader.prototype._transform = function transform(chunk, encoding, done){
 						callback();
 
 					} else {
-						callback(new Error('Invalid Message Size' + '\nHeader: ' + header.toString('hex') + '\nLength: ' + length + '\nchunk: ' + chunk.toString('hex'), 'MSG_SIZE'));
+						callback(new Error('Invalid Message Size' + '\nHeader: ' + header.toString('hex') + '\nLength: ' + length + '\nchunk: ' + chunk.toString('hex') + '\n', 'MSG_SIZE'));
 					}
 
 				} else {
