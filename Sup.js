@@ -638,6 +638,7 @@ Sup.prototype.sendMessage = function sendTextMessage(to, text, callback){
 
     if(self._canSendMsg) {
         text = basicFunc.parseMsgEmojis(text);
+        text = new Buffer(text, 'utf8'); //Hot-fix for UTF-8 encoding
 
         self._writeMsg('text', {text: text, to: to}, true, callback);
     }else {

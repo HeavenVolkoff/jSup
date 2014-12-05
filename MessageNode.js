@@ -99,11 +99,11 @@ module.exports = MessageNode;
 					case 'hex':
 						this.message = new Buffer(data, encoding);
 						break;
-					case 'binary':
+					case 'utf8':
 						this.message = new Buffer(data, encoding);
 						break;
 					default:
-						this.message = new Buffer(data, 'utf8');
+						this.message = new Buffer(data, 'binary');
 						break;
 				}
 			}else if(typeof data === 'number'){
