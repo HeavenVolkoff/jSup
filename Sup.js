@@ -306,7 +306,7 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
                                     media.getAttribute('filehash'),
                                     media.getAttribute('width'),
                                     media.getAttribute('height'),
-                                    media.data,
+                                    media.data.toString('base64'),
                                     media.getAttribute('caption')
                                 );
 
@@ -327,7 +327,7 @@ Sup.prototype.onDecode = function processNodeInfo(index, messageNode){
                                     media.getAttribute('duration'),
                                     media.getAttribute('vcodec'),
                                     media.getAttribute('acodec'),
-                                    media.data,
+                                    media.data.toString('base64'),
                                     media.getAttribute('caption')
                                 );
 
